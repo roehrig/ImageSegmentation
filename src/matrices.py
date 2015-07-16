@@ -1,0 +1,211 @@
+__author__ = 'roehrig'
+
+import numpy
+import pixel
+import math
+
+class Matrix():
+    '''
+    This represents a diagonal matrix, where only the values on the
+    diagonal have a nonzero value.
+    '''
+
+    def __init__(self, columns, rows):
+        '''
+        columns - the number of columns in the matrix.
+        rows - the number of rows in the matrix
+        '''
+
+        self.columns = columns
+        self.rows = rows
+
+        self.size = self.columns * self.rows
+        self.data = numpy.zeros(self.size, numpy.float64)
+
+        self.matrix = None
+
+        return
+
+    def CreateMatrix(self):
+
+        # Create the matrix.  Make sure that the data is in the correct shape first.
+        self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows))
+
+        return
+
+    def GetMatrix(self):
+        return self.matrix
+
+    def SetMatrix(self, newMatrix):
+        self.matrix = newMatrix
+#        self.data = newMatrix.flatten()
+        self.data = numpy.ravel(newMatrix)
+        return
+
+    def GetNumColumns(self):
+        return self.columns
+
+    def GetNumRows(self):
+        return self.rows
+
+    def GetMatrixSize(self):
+        return self.size
+
+    def SetMatrixData(self, data):
+        self.data = data
+        return
+
+    # This function returns a flattened array
+    def GetMatrixDataArray(self):
+        return self.data
+
+    def SaveToFile(self, path):
+        numpy.save(path, self.matrix)
+        return
+
+class WeightMatrix(Matrix):
+    '''
+    This represents a weight matrix for a graph.  Each value is indicative
+    of the weight of the edge that connects two vertices.  Vertices that
+    are more tightly connected have a large edge weight than those that
+    are less connected.
+    '''
+    def __init__(self, columns, rows):
+        '''
+        columns     - the number of columns in the matrix
+        rows        - the number of rows in the matrix
+        '''
+
+        Matrix.__init__(self, columns, rows)
+
+        return
+
+    def SetMaxPixelDistance(self, newDistance=1):
+
+        self.distance = newDistance
+        return
+
+    def SetPixelData(self, data, maxDistance=1):
+
+        self.distance = maxDistance
+        self.pixelArray = data.GetPixelArray()
+        self.numPixels = data.GetPixelArraySize()
+
+        return
+
+    def CalculateVectorNorm(self, pixelA, pixelB):
+
+        locA = numpy.array([pixelA.GetRowNumber(), pixelA.GetColumnNumber()], dtype=numpy.float64)
+        locB = numpy.array([pixelB.GetRowNumber(), pixelB.GetColumnNumber()], dtype=numpy.float64)
+
+        norm = numpy.linalg.norm((locA - locB), 2)
+
+#        x1 = pixelA.GetColumnNumber()
+#        x2 = pixelB.GetColumnNumber()
+#        y1 = pixelA.GetRowNumber()
+#        y2 = pixelB.GetRowNumber()
+
+#        norm = math.sqrt(pow(x1-x2, 2) + pow(y1-y2, 2))
+
+        return norm
+
+    def CalculateScalarNorm(self, valueA=0, valueB=0):
+
+        norm = math.sqrt((valueA - valueB) * (valueA - valueB))
+
+        return norm
+
+    def CreateMatrix(self, sigmaI=1, sigmaX=1):
+
+        i = 0
+        for pixelA in self.pixelArray:
+            j = 0
+            for pixelB in self.pixelArray:
+                stride = (i * self.numPixels) + j
+
+                locationDiff = self.CalculateVectorNorm(pixelA, pixelB)
+
+                if locationDiff < self.distance:
+                    locationDiff = -1 * pow(locationDiff,2)
+                    intensityDiff = -1 * pow(self.CalculateScalarNorm(pixelA.GetValue(), pixelB.GetValue()), 2)
+                    self.data[stride] = math.exp(intensityDiff / sigmaI) * math.exp(locationDiff / sigmaX)
+
+                j += 1
+
+            i += 1
+
+        self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows), numpy.float64)
+        print self.matrix.shape
+        return
+
+    def ReduceMatrix(self, posIndices, negIndices):
+        '''
+        This function divides weight matrix into two parts, one for each segment
+        that the image was divided into.  It also sums the weights of the edges
+        that were removed.
+        '''
+
+        edgeSum = 0
+        for i in range(self.rows):
+            # Check to see if the row in the matrix is from a pixel in the
+            # 'positive' side of the image.
+            if i in posIndices:
+                row = self.matrix[i]
+                # Choose the weight from each row that correspond to pixels in the
+                # 'negative' side of the image.
+                edges = numpy.take(row, negIndices)
+                edgeSum = edgeSum + edges.sum()
+
+        # Select from the weight matrix only the rows that go with one
+        # segment of the image.
+        temp = numpy.take(self.matrix, posIndices, 0)
+        # Select from the remaining rows only the columns that go
+        # with the same segment of the image.
+        temp2 = numpy.take(temp, posIndices, 1)
+        # Create a new, smaller weight matrix.
+        posMatrix = WeightMatrix(temp2.shape[0], temp2.shape[1])
+        posMatrix.SetMatrix(temp2)
+
+        sum1 = numpy.sum(temp, dtype=numpy.float64)
+
+        # Select from the weight matrix only the rows that go with the
+        # other segment of the image.
+        temp = numpy.take(self.matrix, negIndices, 0)
+        # Select from the remaining rows only the columns that go
+        # with the other segment of the image.
+        temp2 = numpy.take(temp, negIndices, 1)
+        # Create a new, smaller weight matrix.
+        negMatrix = WeightMatrix(temp2.shape[0], temp2.shape[1])
+        negMatrix.SetMatrix(temp2)
+
+        # Calculate cut size
+        sum2 = numpy.sum(temp, dtype=numpy.float64)
+        cutsize = (edgeSum / sum1) + (edgeSum / sum2)
+
+#        return (edgeSum, posMatrix, negMatrix)
+        return (cutsize, posMatrix, negMatrix)
+
+
+class DiagonalMatrix(Matrix):
+    '''
+    This represents a diagonal matrix where each diagonal element is the
+    sum of edge weights for all edges connected to a vertex.
+    '''
+
+    def __init__(self, columns, rows):
+
+        Matrix.__init__(self, columns, rows)
+
+        print "D matrix size=%d" % self.data.shape
+
+        return
+
+    def CreateMatrix(self, weights):
+        for i in range(self.size):
+            self.data[i] = weights[i].sum()
+
+        temp = numpy.diag(self.data)
+        self.matrix = numpy.matrix(temp, numpy.float)
+        print self.matrix.shape
+
+        return
