@@ -127,17 +127,10 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
 
     # Calculate the weights of the edges that were removed from the image.
     # Reduce the weight matrix to two new matrices, one for each image segment.
-#    edgeSum, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
     cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-#    matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#    matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#    cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
-#    print "Size of cut = %f" % cutSize
+    print "Size of cut = %f" % cutSize
 
     if divideType == 2:
-#        prevSum = edgeSum
-#        prevMatrixOneSum = matrixOneSum
-#        prevMatrixTwoSum = matrixTwoSum
         prevCutSize = cutSize
         prevSegInfo = segmentInfo
         for i in range(numSteps - 1):
@@ -151,26 +144,17 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
 
             # Calculate the weights of the edges that were removed from the image.
             # Reduce the weight matrix to two new matrices, one for each image segment.
-#            edgeSum, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
             cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-#            matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#            matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#            cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
 #            print "Size of cut = %f" % cutSize
             if cutSize < prevCutSize:
-#                prevSum = edgeSum
                 prevCutSize = cutSize
                 prevMatrixOne = matrixOne
                 prevMatrixTwo = matrixTwo
                 prevSegInfo = segmentInfo
 
-#        edgeSum = prevSum
         cutSize = prevCutSize
         matrixOne = prevMatrixOne
         matrixTwo = prevMatrixTwo
-#        matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#        matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#        cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
         print "Size of choosen cut = %f" % cutSize
         segmentInfo = prevSegInfo
         segmentOne = segmentInfo['segOne']
@@ -221,7 +205,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
     numpy.save(matrix_path + filename + "1.npy", matrixOne.GetMatrix())
     numpy.save(matrix_path + filename + "2.npy", matrixTwo.GetMatrix())
 
-#!    plotter = ScatterPlot("Original Image", secondVec)
+    plotter = ScatterPlot("Original Image", secondVec)
 #!    plotter = HistogramPlot("original image", secondVec)
 
     while cutNumber < 2:
@@ -317,19 +301,11 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
 
             # Calculate the weights of the edges that were removed from the image.
             # Reduce the weight matrix to two new matrices, one for each image segment.
-#            edgeSum, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
             cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-#            matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#            matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#            cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
-#            print "Size of cut = %f" % cutSize
+            print "Size of cut = %f" % cutSize
 
             if divideType == 2:
-#                prevSum = edgeSum
-#                prevMatrixOneSum = matrixOneSum
-#                prevMatrixTwoSum = matrixTwoSum
                 prevCutSize = cutSize
-#                print "Size of cut = %f" % prevCutSize
                 prevSegInfo = segmentInfo
                 for i in range(numSteps - 1):
 
@@ -344,24 +320,16 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
                     # Reduce the weight matrix to two new matrices, one for each image segment.
 #                    edgeSum, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
                     cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-#                    matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#                    matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#                    cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
 #                    print "Size of cut = %f" % cutSize
                     if cutSize < prevCutSize:
-#                        prevSum = edgeSum
                         prevCutSize = cutSize
                         prevMatrixOne = matrixOne
                         prevMatrixTwo = matrixTwo
                         prevSegInfo = segmentInfo
 
-#                edgeSum = prevSum
                 cutSize = prevCutSize
                 matrixOne = prevMatrixOne
                 matrixTwo = prevMatrixTwo
-#                matrixOneSum = numpy.sum(matrixOne.GetMatrix(), dtype=numpy.float64)
-#                matrixTwoSum = numpy.sum(matrixTwo.GetMatrix(), dtype=numpy.float64)
-#                cutSize = (edgeSum / matrixOneSum) + (edgeSum / matrixTwoSum)
                 print "Size of choosen cut = %f" % cutSize
                 segmentInfo = prevSegInfo
                 segmentOne = segmentInfo['segOne']
@@ -383,7 +351,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
             posLocations = numpy.take(newLocations, posIndices)
             negLocations = numpy.take(newLocations, negIndices)
 
-#!            plotter.AddPlot(image, secondVec)
+            plotter.AddPlot(image, secondVec)
 
             filename = "segment_%d_%d" % (cutNumber, imageNumber)
             print "Writing image file %s.tif" % filename
@@ -402,15 +370,15 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
             numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
             imageNumber = imageNumber + 1
 
-#!    plotter.ShowPlots()
+    plotter.ShowPlots()
 
     return
 
 if __name__ == "__main__":
     maxPixelDistance = 8
     image_dir = "/Users/roehrig/PycharmProjects/segment_image/images"
-#    data = ImageFileData(image_dir + "/lena_32x32.tif")
-    data = ImageFileData(image_dir + "/testdata/img_2xfm_0054.h5_K.tif")
+    data = ImageFileData(image_dir + "/lena_32x32.tif")
+#    data = ImageFileData(image_dir + "/testdata/img_2xfm_0054.h5_K.tif")
 
     #Set the type of dividing to be done.
     # 0 - divide the image using the value of zero
@@ -421,6 +389,10 @@ if __name__ == "__main__":
     # Read in the image and initialize information such as image size,
     # mode (rgb, b&w, etc.)
     data.ReadImage()
+
+#    data.DiscretizeImage()
+#    data.SmoothImage(3)
+
     print "Image mode is %s" % data.GetImageMode()
     imageData = data.GetImageData()
     imageSize = data.GetImageSize()
@@ -429,10 +401,8 @@ if __name__ == "__main__":
     locationValues = data.pixels.CreateLocationArray()
     print "Number of image pixels = %d" % imageSize
     print "Image width = %d, image height = %d" % dimensions
-#    sigmaI = CalculateIntensitySigma(data.GetPixelsArray())
     sigmaI = numpy.var(imageData)
     print "Intensity variance = %f" % sigmaI
-#    sigmaX = CalculateLocationSigma(data.GetPixels())
     sigmaX = numpy.var(locationValues)
     print "Location variance = %f" % sigmaX
 
