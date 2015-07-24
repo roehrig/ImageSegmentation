@@ -53,15 +53,15 @@ def CalculateLocationSigma(pixels):
     return sigma
 #    return math.sqrt(sigma)
 
-def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingValue):
+def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingValue, channels):
 
-    segmentOne = numpy.zeros(imageSize)
-    segmentTwo = numpy.zeros(imageSize)
-
+    segmentOne = numpy.zeros(imageSize, dtype=tuple)  #instead of creating an array of ints, this now creates an array of tuples
+    segmentTwo = numpy.zeros(imageSize, dtype=tuple)  #with its each tuples length corresonding to the # of channels in the image
+                                                                #'channels' is gotten from ImageData.GetBands() and passed through SegmentImage()
     posIndices = []
     negIndices = []
 
-#    print "Segmenting image"
+#   print "Segmenting image"
     numPos = 0
     numNeg = 0
     for i in range(datasize):
@@ -81,7 +81,7 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 
     return segmentInfo
 
-def SegmentImage (weightMatrix, data, image_dir, divideType):
+def SegmentImage (weightMatrix, data, image_dir, divideType, channels, fileFormat): #now takes channels and fileformat
 
     print "Creating diagonal matrix"
     diagonalMatrix = DM(data.width, data.height)
@@ -119,7 +119,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
     pixelLocations = numpy.arange(imageSize)
     imageData = data.GetImageData()
 
-    segmentInfo = DivideImage(secondVec, imageData, imageSize, imageSize, pixelLocations, dividingValue)
+    segmentInfo = DivideImage(secondVec, imageData, imageSize, imageSize, pixelLocations, dividingValue, channels) #now passes channels
     segmentOne = segmentInfo['segOne']
     segmentTwo = segmentInfo['segTwo']
     posIndices = segmentInfo['posIndices']
@@ -143,7 +143,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
         for i in range(numSteps - 1):
 
             dividingValue = dividingValue - stepSize
-            segmentInfo = DivideImage(secondVec, imageData, imageSize, imageSize, pixelLocations, dividingValue)
+            segmentInfo = DivideImage(secondVec, imageData, imageSize, imageSize, pixelLocations, dividingValue, channels) #now passes channels
             segmentOne = segmentInfo['segOne']
             segmentTwo = segmentInfo['segTwo']
             posIndices = segmentInfo['posIndices']
@@ -211,9 +211,10 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
 
     filename = "/segment_1_"
     print "Writing image file %s_1.tif" % filename
-    data.WriteNewImage(segmentOne, image_path + filename +"1.tif")
+    #print("data in segment 1: {}".format(segmentOne)) #for debug
+    data.WriteNewImage(segmentOne, image_path + filename +"1." + fileFormat) #this will now write to whatever the file format of the original is instead of just tif
     print "Writing image file %s_2.tif\n" % filename
-    data.WriteNewImage(segmentTwo, image_path + filename + "2.tif")
+    data.WriteNewImage(segmentTwo, image_path + filename + "2." + fileFormat)
     posArrays = {'pixels':posPixels, 'locations':posLocations}
     numpy.savez(pixel_path + filename + "1.npz", **posArrays)
     negArrays = {'pixels':negPixels, 'locations':negLocations}
@@ -309,7 +310,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
                     dividingValue = maxVal
 
             imageData = data.GetImageData()
-            segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue)
+            segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue, channels) #now passes channels
             segmentOne = segmentInfo['segOne']
             segmentTwo = segmentInfo['segTwo']
             posIndices = segmentInfo['posIndices']
@@ -334,7 +335,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
                 for i in range(numSteps - 1):
 
                     dividingValue = dividingValue - stepSize
-                    segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue)
+                    segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue, channels) #now passes channels
                     segmentOne = segmentInfo['segOne']
                     segmentTwo = segmentInfo['segTwo']
                     posIndices = segmentInfo['posIndices']
@@ -408,9 +409,11 @@ def SegmentImage (weightMatrix, data, image_dir, divideType):
 
 if __name__ == "__main__":
     maxPixelDistance = 8
-    image_dir = "/Users/roehrig/PycharmProjects/segment_image/images"
-#    data = ImageFileData(image_dir + "/lena_32x32.tif")
-    data = ImageFileData(image_dir + "/testdata/img_2xfm_0054.h5_K.tif")
+    filename = "sampleblock.jpg"
+   #filename = "/lena_32x32.tif"
+   #image_dir = "/Users/roehrig/PycharmProjects/segment_image/images"
+    image_dir = "C:\Users\joeho_000\OneDrive\Work\ANL APS XSD\images\\"
+    data = ImageFileData("{}{}".format(image_dir, filename))
 
     #Set the type of dividing to be done.
     # 0 - divide the image using the value of zero
@@ -421,10 +424,15 @@ if __name__ == "__main__":
     # Read in the image and initialize information such as image size,
     # mode (rgb, b&w, etc.)
     data.ReadImage()
+
+    print("data: {}".format(list(data.GetImageData()))) #inspecting the output of getData
     print "Image mode is %s" % data.GetImageMode()
     imageData = data.GetImageData()
     imageSize = data.GetImageSize()
     dimensions = data.GetImageDimensions()
+    channels = data.GetBands()                          #added bands/channels
+    fileFormat = data.GetFileFormat()                   #added fileFormat
+    print("Image format is " + fileFormat)
     # Create an array of pixel locations, location=sqrt(x^2 + y^2)
     locationValues = data.pixels.CreateLocationArray()
     print "Number of image pixels = %d" % imageSize
@@ -442,4 +450,4 @@ if __name__ == "__main__":
     weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
     weightMatrix.CreateMatrix(sigmaI, sigmaX)
 
-    SegmentImage(weightMatrix, data, image_dir, divideType)
+    SegmentImage(weightMatrix, data, image_dir, divideType, channels, fileFormat) #now passes fileformat and channels

@@ -20,7 +20,7 @@ class Matrix():
         self.rows = rows
 
         self.size = self.columns * self.rows
-        self.data = numpy.zeros(self.size, numpy.float64)
+        self.data = numpy.zeros(self.size, numpy.float64) # creates a 1D array populated by zeros with an item for every pixel, datatype float64
 
         self.matrix = None
 
@@ -93,7 +93,7 @@ class WeightMatrix(Matrix):
 
         return
 
-    def CalculateVectorNorm(self, pixelA, pixelB):
+    def CalcLocationVectorNorm(self, pixelA, pixelB):
 
         locA = numpy.array([pixelA.GetRowNumber(), pixelA.GetColumnNumber()], dtype=numpy.float64)
         locB = numpy.array([pixelB.GetRowNumber(), pixelB.GetColumnNumber()], dtype=numpy.float64)
@@ -109,9 +109,11 @@ class WeightMatrix(Matrix):
 
         return norm
 
-    def CalculateScalarNorm(self, valueA=0, valueB=0):
+    def CalcPixelvalVectorNorm(self, pixelA, pixelB):
 
-        norm = math.sqrt((valueA - valueB) * (valueA - valueB))
+        valueA = numpy.array(pixelA.GetValue(), dtype = numpy.float64)
+        valueB = numpy.array(pixelB.GetValue(), dtype = numpy.float64)
+        norm = numpy.linalg.norm((valueA  - valueB), 2)
 
         return norm
 
@@ -123,11 +125,12 @@ class WeightMatrix(Matrix):
             for pixelB in self.pixelArray:
                 stride = (i * self.numPixels) + j
 
-                locationDiff = self.CalculateVectorNorm(pixelA, pixelB)
+                locationDiff = self.CalcLocationVectorNorm(pixelA, pixelB)
+                intensityDiff = self.CalcPixelvalVectorNorm(pixelA, pixelB)
 
                 if locationDiff < self.distance:
                     locationDiff = -1 * pow(locationDiff,2)
-                    intensityDiff = -1 * pow(self.CalculateScalarNorm(pixelA.GetValue(), pixelB.GetValue()), 2)
+                    intensityDiff = -1 * pow(intensityDiff, 2) #Changed the Intensity difference to calulate the vector norm of two arrays (works for multi-layer images)
                     self.data[stride] = math.exp(intensityDiff / sigmaI) * math.exp(locationDiff / sigmaX)
 
                 j += 1
@@ -138,7 +141,7 @@ class WeightMatrix(Matrix):
         print self.matrix.shape
         return
 
-    def ReduceMatrix(self, posIndices, negIndices):
+    def ReduceMatrix(self, posIndices, negIndices): #cut
         '''
         This function divides weight matrix into two parts, one for each segment
         that the image was divided into.  It also sums the weights of the edges
