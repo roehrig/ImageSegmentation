@@ -377,7 +377,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, channels, fileForma
 
 if __name__ == "__main__":
     maxPixelDistance = 8
-    filename = "sampleblock.jpg"
+    filename = "gray.png"
    #filename = "/lena_32x32.tif"
    #image_dir = "/Users/roehrig/PycharmProjects/segment_image/images"
     image_dir = "C:\Users\joeho_000\OneDrive\Work\ANL APS XSD\images\\"

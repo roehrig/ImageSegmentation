@@ -109,6 +109,13 @@ class WeightMatrix(Matrix):
 
         return norm
 
+    def CalcScalarNorm(self, pixelA, pixelB):
+
+        valueA = pixelA.GetValue()
+        valueB = pixelB.GetValue()
+        norm = math.sqrt((valueA - valueB) * (valueA - valueB))
+        return norm
+
     def CalcPixelvalVectorNorm(self, pixelA, pixelB):
 
         valueA = numpy.array(pixelA.GetValue(), dtype = numpy.float64)
@@ -126,7 +133,11 @@ class WeightMatrix(Matrix):
                 stride = (i * self.numPixels) + j
 
                 locationDiff = self.CalcLocationVectorNorm(pixelA, pixelB)
-                intensityDiff = self.CalcPixelvalVectorNorm(pixelA, pixelB)
+
+                if(type(pixelA.GetValue())) == int:
+                    intensityDiff = self.CalcScalarNorm(pixelA, pixelB)
+                else:
+                    intensityDiff = self.CalcPixelvalVectorNorm(pixelA, pixelB)
 
                 if locationDiff < self.distance:
                     locationDiff = -1 * pow(locationDiff,2)
