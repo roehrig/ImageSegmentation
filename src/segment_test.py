@@ -10,6 +10,7 @@ from matrices import WeightMatrix as WM
 from numpy import linalg as LA
 from plotframe import ScatterPlot
 from plotframe import HistogramPlot
+import time
 
 def CalculateIntensitySigma(pixelList):
 
@@ -85,7 +86,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, channels, fileForma
 
     print "Creating diagonal matrix"
     diagonalMatrix = DM(data.width, data.height)
-    diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
+    diagonalMatrix.MultiprocessMatrix(weightMatrix.GetMatrix())
 
     print "Calculating D-W"
     finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
@@ -261,7 +262,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, channels, fileForma
             # Create a new diagonal matrix.
 #            print "Creating diagonal matrix"
             diagonalMatrix = DM(newPixels.size, 1)
-            diagonalMatrix.CreateMatrix(newWeightMatrix.GetMatrix())
+            diagonalMatrix.MultiprocessMatrix(newWeightMatrix.GetMatrix())
 
 #            print "Calculating D-W"
             finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
@@ -376,8 +377,10 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, channels, fileForma
     return
 
 if __name__ == "__main__":
+
+
     maxPixelDistance = 8
-    filename = "gray.png"
+    filename = "16x16.jpg"
    #filename = "/lena_32x32.tif"
    #image_dir = "/Users/roehrig/PycharmProjects/segment_image/images"
     image_dir = "C:\Users\joeho_000\OneDrive\Work\ANL APS XSD\images\\"
@@ -418,6 +421,11 @@ if __name__ == "__main__":
     print "Creating weight matrix"
     weightMatrix = WM(data.size, data.size)
     weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
-    weightMatrix.CreateMatrix(sigmaI, sigmaX)
+
+
+    t0 = time.time()
+    weightMatrix.CreateMatrix(sigmaI, sigmaX)           #now computes weight matrix in parallel
+    t1 = time.time() - t0
+    print('Parallel building of WM took {} seconds'.format(t1))
 
     SegmentImage(weightMatrix, data, image_dir, divideType, channels, fileFormat) #now passes fileformat and channels

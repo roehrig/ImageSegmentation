@@ -91,6 +91,8 @@ class ImageFileData(ImageData):
         dataImage = Image.new(self.imageMode, self.dataImage.size)
         dataImage.putdata(data)
         dataImage.save(fileName, self.fileFormat)
+        tmp = dataImage.resize((200,200))
+        tmp.show()
 
         return
 

@@ -3,6 +3,10 @@ __author__ = 'roehrig'
 import numpy
 import pixel
 import math
+import multiprocessing as mp
+
+def unwrap_CreateMatrix(args):      #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
+    return WeightMatrix.CreateMatrixMp(*args)
 
 class Matrix():
     '''
@@ -100,53 +104,67 @@ class WeightMatrix(Matrix):
 
         norm = numpy.linalg.norm((locA - locB), 2)
 
-#        x1 = pixelA.GetColumnNumber()
-#        x2 = pixelB.GetColumnNumber()
-#        y1 = pixelA.GetRowNumber()
-#        y2 = pixelB.GetRowNumber()
-
-#        norm = math.sqrt(pow(x1-x2, 2) + pow(y1-y2, 2))
-
         return norm
 
-    def CalcScalarNorm(self, pixelA, pixelB):
+    def CalcPixelScalarNorm(self, pixelA, pixelB):
 
         valueA = pixelA.GetValue()
         valueB = pixelB.GetValue()
+
         norm = math.sqrt((valueA - valueB) * (valueA - valueB))
-        return norm
-
-    def CalcPixelvalVectorNorm(self, pixelA, pixelB):
-
-        valueA = numpy.array(pixelA.GetValue(), dtype = numpy.float64)
-        valueB = numpy.array(pixelB.GetValue(), dtype = numpy.float64)
-        norm = numpy.linalg.norm((valueA  - valueB), 2)
 
         return norm
 
-    def CreateMatrix(self, sigmaI=1, sigmaX=1):
+    def CalcPixelVectorNorm(self, pixelA, pixelB):
 
-        i = 0
-        for pixelA in self.pixelArray:
-            j = 0
-            for pixelB in self.pixelArray:
-                stride = (i * self.numPixels) + j
+        try:
+            valueA = numpy.array(pixelA.GetValue(), dtype = numpy.float64)
+            valueB = numpy.array(pixelB.GetValue(), dtype = numpy.float64)
+            norm = numpy.linalg.norm((valueA  - valueB), 2)
+            return norm
 
-                locationDiff = self.CalcLocationVectorNorm(pixelA, pixelB)
+        except ValueError:
+            return self.CalcPixelScalarNorm(pixelA, pixelB)
 
-                if(type(pixelA.GetValue())) == int:
-                    intensityDiff = self.CalcScalarNorm(pixelA, pixelB)
-                else:
-                    intensityDiff = self.CalcPixelvalVectorNorm(pixelA, pixelB)
 
-                if locationDiff < self.distance:
-                    locationDiff = -1 * pow(locationDiff,2)
-                    intensityDiff = -1 * pow(intensityDiff, 2) #Changed the Intensity difference to calulate the vector norm of two arrays (works for multi-layer images)
-                    self.data[stride] = math.exp(intensityDiff / sigmaI) * math.exp(locationDiff / sigmaX)
+    def CreateMatrixMp(self, sigmaI=1, sigmaX=1, i = 0): #rewritten to only calulate the relationships of one pixel at a time (numPixels # of loops instead of numPixels^2)
+                                                         #multiple processes now use this function
 
-                j += 1
+        pixelA = self.pixelArray[i]
+        pixelAData = []
 
-            i += 1
+        j = 0
+        for pixelB in self.pixelArray:
+            stride = (i * self.numPixels) + j
+
+            locationDiff = self.CalcLocationVectorNorm(pixelA, pixelB)
+
+            if locationDiff < self.distance:
+                intensityDiff = self.CalcPixelVectorNorm(pixelA, pixelB) #Now calculates this inside of the if
+                locationDiff = -1 * pow(locationDiff,2)
+                intensityDiff = -1 * pow(intensityDiff, 2) #Changed the Intensity difference to calulate the vector norm of two arrays (works for multi-layer images)
+                value = math.exp(intensityDiff / sigmaI) * math.exp(locationDiff / sigmaX)
+                pixelAData.append((value, stride))
+
+            j += 1
+
+        return pixelAData #This is the data for one pixel. numPixels # of these returned to CreateMatrix to append all values to self.data
+
+
+    def CreateMatrix(self, sigmaI, sigmaX): #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
+
+        cpus = mp.cpu_count()
+        poolCount = cpus
+        args = [(self, sigmaI, sigmaX, i,) for i in range(self.numPixels)]
+        print('Number of cpu\'s to process WM:%d'%cpus)
+
+        pool = mp.Pool(processes = poolCount)
+        print('mapping')
+        tempData = pool.map(unwrap_CreateMatrix, args)
+
+        for pixelList in tempData:   #This puts the data of each pixel, returned from each seperate process, into self.data
+            for pixel in pixelList:
+                self.data[pixel[1]] = pixel[0]
 
         self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows), numpy.float64)
         print self.matrix.shape
@@ -214,7 +232,7 @@ class DiagonalMatrix(Matrix):
 
         return
 
-    def CreateMatrix(self, weights):
+    def MultiprocessMatrix(self, weights):
         for i in range(self.size):
             self.data[i] = weights[i].sum()
 
