@@ -16,6 +16,7 @@ class ImageData():
         self.pixels = None
         self.imageMode = None
         self.size = width * height
+        self.fileFormat = None
 
         return
 
@@ -37,8 +38,8 @@ class ImageData():
     def GetImageMode(self):
         return self.imageMode
 
-    def GetBands(self):
-        return self.bands   #gets the number of bands or channels composing the image
+    def GetChannels(self):
+        return len(self.data[0])    #This now simply returns the length of the first pixels vector value
 
     def GetFileFormat(self):
         return self.fileFormat
@@ -74,8 +75,6 @@ class ImageFileData(ImageData):
         self.size = len(self.data)
         self.fileFormat = self.dataImage.format
         self.imageMode = self.dataImage.mode
-        self.bands = self.dataImage.getbands()
-
 
         # Create a list of Pixel objects (see pixel.py)
         self.pixels = PixelArray(self.width, self.height, self.data)
