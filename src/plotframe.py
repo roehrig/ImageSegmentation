@@ -1,10 +1,10 @@
 __author__ = 'roehrig'
 
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy
 import math
+import shareGui
 
 class ScatterPlot ():
     '''
@@ -43,10 +43,12 @@ class ScatterPlot ():
 
         return
 
-    def ShowPlots(self):
-
-        plt.show()
+    def displayPlots(self):
+        figures = list(map(plt.figure, plt.get_fignums()))
+        shareGui.getGui().addPlots(figures, 0)
         return
+
+
 
 class HistogramPlot():
     '''

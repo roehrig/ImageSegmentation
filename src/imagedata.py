@@ -39,7 +39,10 @@ class ImageData():
         return self.imageMode
 
     def GetChannels(self):
-        return len(self.data[0])    #This now simply returns the length of the first pixels vector value
+        try:
+            return len(self.data[0])    #This now simply returns the length of the first pixels vector value
+        except TypeError:
+            return(1)                   #if len(0) fails, first pixel must be a scalar (single-layer image)
 
     def GetFileFormat(self):
         return self.fileFormat
@@ -90,15 +93,11 @@ class ImageFileData(ImageData):
         dataImage = Image.new(self.imageMode, self.dataImage.size)
         dataImage.putdata(data)
         dataImage.save(fileName, self.fileFormat)
-        tmp = dataImage.resize((200,200))
-        tmp.show()
-
         return
 
     def DiscretizeImage(self, maxVal=1, minVal=0):
 
         '''
-
         This function takes an image and finds the median pixel value, then compares
         the value of each pixel to the median.  If a pixel is greater than or equal
         to the median, the pixel value is set to a user supplied value.  If the pixel

@@ -4,9 +4,13 @@ import numpy
 import pixel
 import math
 import multiprocessing as mp
+import shareGui
 
 def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
     return WeightMatrix.CreateMatrixPixelA(*args)
+
+def updateLog(gui, string):
+    gui.updateLog(string)
 
 class Matrix():
     '''
@@ -81,6 +85,8 @@ class WeightMatrix(Matrix):
         '''
 
         Matrix.__init__(self, columns, rows)
+        global gui
+        gui = shareGui.getGui()
 
         return
 
@@ -129,7 +135,6 @@ class WeightMatrix(Matrix):
 
     def CreateMatrixPixelA(self, sigmaI=1, sigmaX=1, i = 0):               #rewritten to only calulate the relationships of one pixel at a time (numPixels # of loops instead of numPixels^2)
                                                                            #multiple processes now use this function
-
         pixelA = self.pixelArray[i]
         pixelAData = []
 
@@ -151,23 +156,23 @@ class WeightMatrix(Matrix):
         return pixelAData                                                  #This is the data for one pixel. numPixels # of these returned to CreateMatrix to append all values to self.data
 
 
-    def CreateMatrix(self, sigmaI, sigmaX):                                #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
+    def CreateMatrix(self, sigmaI, sigmaX):                           #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
 
         cpus = mp.cpu_count()
         poolCount = cpus
         args = [(self, sigmaI, sigmaX, i,) for i in range(self.numPixels)]
-        print('Number of cpu\'s to process WM:%d'%cpus)
+        updateLog(gui, 'Number of cpu\'s to process WM:%d'%cpus)
 
         pool = mp.Pool(processes = poolCount)
-        print('mapping')
+        updateLog(gui, 'Mapping pool processes')
         tempData = pool.map(unwrap_CreateMatrix, args)
 
-        for pixelList in tempData:                                        #This puts the data of each pixel, returned from each seperate process, into self.data
+        for pixelList in tempData:                                          #This puts the data of each pixel, returned from each seperate process, into self.data
             for pixel in pixelList:
                 self.data[pixel[1]] = pixel[0]
 
         self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows), numpy.float64)
-        print self.matrix.shape
+        updateLog(gui, '{}'.format(self.matrix.shape))
         return
 
     def ReduceMatrix(self, posIndices, negIndices):
@@ -228,16 +233,18 @@ class DiagonalMatrix(Matrix):
 
         Matrix.__init__(self, columns, rows)
 
-        print "D matrix size=%d" % self.data.shape
+        global gui
+        gui = shareGui.getGui()
+        updateLog(gui, "D matrix size=%d" % self.data.shape)
 
         return
 
-    def MultiprocessMatrix(self, weights):
+    def CreateMatrix(self, weights):
         for i in range(self.size):
             self.data[i] = weights[i].sum()
 
         temp = numpy.diag(self.data)
         self.matrix = numpy.matrix(temp, numpy.float)
-        print self.matrix.shape
+        updateLog(gui, '{}'.format(self.matrix.shape))
 
         return
