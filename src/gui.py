@@ -3,6 +3,7 @@ __author__ = 'hollowed'
 import sys
 import os
 import segment_test
+import plotframe
 import shareGui
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -306,8 +307,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.resultsTitle = qt.QLabel('Results', self.resultsFrame)
         self.noResults = qt.QLabel('Run segmentation or open results from file to display.', self.segmentsFrame)
         self.resultsReset = qt.QPushButton('Reset', self.resultsFrame)
-        self.scatterAxesLabels = qt.QLabel('x = pixel\ny = second eigenvector', self.scatterFrame)
-        self.histogramAxesLabels = qt.QLabel('x = \ny = second eigenvector', self.histogramFrame)
+        self.scatterAxesLabels = qt.QLabel('x-axis = pixel\ny-axis = second eigenvector', self.scatterFrame)
+        self.histogramAxesLabels = qt.QLabel('x-axis = \ny-axis = second eigenvector', self.histogramFrame)
 
         #Configuring components
         self.resultsTitle.setFont(self.header)
@@ -324,8 +325,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.scatterScroll.setWidget(self.scatterFrame)
         self.histogramScroll.setWidget(self.histogramFrame)
         self.segmentsScroll.setWidget(self.segmentsFrame)
-        self.scatterAxesLabels.setFont(self.header)
-        self.histogramAxesLabels.setFont(self.header)
+        self.scatterAxesLabels.setFont(self.emphasis1)
+        self.histogramAxesLabels.setFont(self.emphasis1)
         #To make scrollbars behave appropriately:
         scrolls = [self.segmentsScroll, self.scatterScroll, self.histogramScroll]
         for scroll in scrolls:
@@ -337,9 +338,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.scatterTabLayout.addWidget(self.scatterScroll)
         self.histogramTabLayout.addWidget(self.histogramScroll)
         self.segmentsTabLayout.addWidget(self.segmentsScroll)
-        self.segmentsLayout.addWidget(self.noResults)
-        self.scatterLayout.addWidget(self.scatterAxesLabels)
-        self.histogramLayout.addWidget(self.histogramAxesLabels)
+        self.segmentsLayout.addWidget(self.noResults, 0, 0)
+        self.scatterLayout.addWidget(self.scatterAxesLabels, 0, 0)
+        self.histogramLayout.addWidget(self.histogramAxesLabels, 0, 0)
         resultsLayout.addWidget(self.resultsTitle)
         resultsLayout.addWidget(self.resultTabs)
         resultsLayout.addWidget(self.resultsReset)
@@ -539,10 +540,15 @@ class XSDImageSegmentation(qt.QMainWindow):
         #This loop clears all images and plots from the results tabs
         layouts = [self.scatterLayout, self.histogramLayout, self.segmentsLayout]
         for layout in layouts:
-            for i in reversed(range(layout.count()) - 1):
-                #The '-1' here keeps the axes labels and no results message in the tabs
+            for i in reversed(range(layout.count())):
+                #The reversed range is necessary to prevent error
                 layout.itemAt(i).widget().setParent(None)
 
+        #calls the clarAll() method in plotframe.py so that every plot is erased
+        plotframe.clearAll()
+        self.segmentsLayout.addWidget(self.noResults, 0, 0)
+        self.scatterLayout.addWidget(self.scatterAxesLabels, 0, 0)
+        self.histogramLayout.addWidget(self.histogramAxesLabels, 0, 0)
         self.noResults.show()
         self.resultTabs.setTabEnabled(1, False)
         self.resultTabs.setTabEnabled(2, False)
@@ -643,17 +649,17 @@ class XSDImageSegmentation(qt.QMainWindow):
         #adds a list of scatter figures built in plotframe.py to the results frame
         #plotType: 0 = scatter, 1 = histogram
 
+        i = 1
+        j = 0
+        #maxColumn is how far over the images will line to the right before starting a "new line" of plots
+        maxColumn = 2
+
         if(plotType == 0):
             frame = self.scatterFrame
             layout = self.scatterLayout
         else:
             frame = self.histogramFrame
             layout = self.histogramLayout
-
-        i = 1
-        j = 0
-        #maxColumn is how far over the images will line to the right before starting a "new line" of plots
-        maxColumn = 2
 
         for fig in figures:
             figure = qt.QFrame(frame)

@@ -6,6 +6,9 @@ import numpy
 import math
 import shareGui
 
+def clearAll():
+    plt.close('all')
+
 class ScatterPlot ():
     '''
     classdocs
