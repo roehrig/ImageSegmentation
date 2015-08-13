@@ -6,11 +6,10 @@ import math
 import multiprocessing as mp
 import shareGui
 
+
 def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
     return WeightMatrix.CreateMatrixPixelA(*args)
 
-def updateLog(gui, string):
-    gui.updateLog(string)
 
 class Matrix():
     '''
@@ -85,9 +84,6 @@ class WeightMatrix(Matrix):
         '''
 
         Matrix.__init__(self, columns, rows)
-        global gui
-        gui = shareGui.getGui()
-
         return
 
     def SetMaxPixelDistance(self, newDistance=1):
@@ -158,13 +154,14 @@ class WeightMatrix(Matrix):
 
     def CreateMatrix(self, sigmaI, sigmaX):                           #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
 
+        gui = shareGui.getGui()
         cpus = mp.cpu_count()
         poolCount = cpus
         args = [(self, sigmaI, sigmaX, i,) for i in range(self.numPixels)]
-        updateLog(gui, 'Number of cpu\'s to process WM:%d'%cpus)
+        gui.updateLog('Number of cpu\'s to process WM:%d'%cpus)
 
         pool = mp.Pool(processes = poolCount)
-        updateLog(gui, 'Mapping pool processes')
+        gui.updateLog('Mapping pool processes')
         tempData = pool.map(unwrap_CreateMatrix, args)
 
         for pixelList in tempData:                                          #This puts the data of each pixel, returned from each seperate process, into self.data
@@ -172,7 +169,7 @@ class WeightMatrix(Matrix):
                 self.data[pixel[1]] = pixel[0]
 
         self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows), numpy.float64)
-        updateLog(gui, '{}'.format(self.matrix.shape))
+        gui.updateLog('{}'.format(self.matrix.shape))
         return
 
     def ReduceMatrix(self, posIndices, negIndices):
@@ -232,19 +229,19 @@ class DiagonalMatrix(Matrix):
     def __init__(self, columns, rows):
 
         Matrix.__init__(self, columns, rows)
-
-        global gui
         gui = shareGui.getGui()
-        updateLog(gui, "D matrix size=%d" % self.data.shape)
+        gui.updateLog("D matrix size=%d" % self.data.shape)
 
         return
 
     def CreateMatrix(self, weights):
+
         for i in range(self.size):
             self.data[i] = weights[i].sum()
 
+        gui = shareGui.getGui()
         temp = numpy.diag(self.data)
         self.matrix = numpy.matrix(temp, numpy.float)
-        updateLog(gui, '{}'.format(self.matrix.shape))
+        gui.updateLog('{}'.format(self.matrix.shape))
 
         return

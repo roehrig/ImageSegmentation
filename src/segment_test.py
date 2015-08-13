@@ -15,6 +15,7 @@ import time
 import shareGui
 from PyQt4 import QtGui as qt
 
+
 def CalculateIntensitySigma(pixelList):
 
     mu = 0.0
@@ -33,6 +34,7 @@ def CalculateIntensitySigma(pixelList):
 
     return sigma
 #    return math.sqrt(sigma)
+
 
 def CalculateLocationSigma(pixels):
 
@@ -56,6 +58,7 @@ def CalculateLocationSigma(pixels):
 
     return sigma
 #    return math.sqrt(sigma)
+
 
 def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingValue):
 
@@ -84,18 +87,19 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 
     return segmentInfo
 
-def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, iterations): #now takes channels and fileformat and displayPlots
+
+def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, iterations): #now takes fileformat, displayPlots, and iterations
 
     gui = shareGui.getGui()                                                                         #added the gui object
 
-    updateLog(gui, "Creating diagonal matrix")
+    gui.updateLog("Creating diagonal matrix")
     diagonalMatrix = DM(data.width, data.height)
     diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
 
-    updateLog(gui, "Calculating D-W")
+    gui.updateLog("Calculating D-W")
     finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
 
-    updateLog(gui, "Solving for eigenvalues")
+    gui.updateLog("Solving for eigenvalues")
     eigenValues, eigenVectors = LA.eig(finalMatrix)
     indices = eigenValues.argsort()
     secondVal = eigenValues[indices[1]]
@@ -133,7 +137,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     # Calculate the weights of the edges that were removed from the image.
     # Reduce the weight matrix to two new matrices, one for each image segment.
     cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-    updateLog(gui, "Size of cut = %f" % cutSize)
+    gui.updateLog("Size of cut = %f" % cutSize)
 
     if divideType == 2:
         prevCutSize = cutSize
@@ -150,7 +154,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             # Calculate the weights of the edges that were removed from the image.
             # Reduce the weight matrix to two new matrices, one for each image segment.
             cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-#            print "Size of cut = %f" % cutSize
+
             if cutSize < prevCutSize:
                 prevCutSize = cutSize
                 prevMatrixOne = matrixOne
@@ -160,16 +164,16 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
         cutSize = prevCutSize
         matrixOne = prevMatrixOne
         matrixTwo = prevMatrixTwo
-        updateLog(gui, "Size of choosen cut = %f" % cutSize)
+        gui.updateLog("Size of choosen cut = %f" % cutSize)
         segmentInfo = prevSegInfo
         segmentOne = segmentInfo['segOne']
         segmentTwo = segmentInfo['segTwo']
         posIndices = segmentInfo['posIndices']
         negIndices = segmentInfo['negIndices']
-        updateLog(gui, "Pixels in image one = %d" % len(posIndices))
-        updateLog(gui, "Pixels in image two = %d" % len(negIndices))
-        updateLog(gui, "Matrix one size = %dx%d" % (matrixOne.GetMatrix().shape[0], matrixOne.GetMatrix().shape[1]))
-        updateLog(gui, "Matrix two size = %dx%d" % (matrixTwo.GetMatrix().shape[0], matrixTwo.GetMatrix().shape[1]))
+        gui.updateLog("Pixels in image one = %d" % len(posIndices))
+        gui.updateLog("Pixels in image two = %d" % len(negIndices))
+        gui.updateLog("Matrix one size = %dx%d" % (matrixOne.GetMatrix().shape[0], matrixOne.GetMatrix().shape[1]))
+        gui.updateLog("Matrix two size = %dx%d" % (matrixTwo.GetMatrix().shape[0], matrixTwo.GetMatrix().shape[1]))
 
     # Create two arrays, each containing pixels from the original image, using
     # the indices returned from DivideImage.
@@ -199,9 +203,9 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                 raise
 
     filename = "/segment_1_"
-    updateLog(gui, "Writing image file {}_1.{}".format(filename, fileFormat))
+    gui.updateLog("Writing image file {}_1.{}".format(filename, fileFormat))
     data.WriteNewImage(segmentOne, '{}{}1.{}'.format(image_path,filename,fileFormat))     #this will now write to whatever the file format of the original is instead of just tif
-    updateLog(gui, "Writing image file {}_2.{}\n".format(filename, fileFormat))
+    gui.updateLog("Writing image file {}_2.{}\n".format(filename, fileFormat))
     data.WriteNewImage(segmentTwo, '{}{}2.{}'.format(image_path,filename,fileFormat))
     posArrays = {'pixels':posPixels, 'locations':posLocations}
     numpy.savez(pixel_path + filename + "1.npz", **posArrays)
@@ -213,10 +217,12 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     scatterPlotter = ScatterPlot("Original Image", secondVec)
     #histogramPlotter = HistogramPlot("Original image", secondVec)
 
+    gui.advanceProgressBar(60)
+
     while cutNumber < iterations:                                                       #The algorithm will now run for as many times as desired, with the variable 'iterations'
                                                                                         # given by the user in the gui
 
-        gui.advanceProgressBar(50/iterations)
+        gui.advanceProgressBar(40/iterations)
         imageNumber = 1
         cutNumber = cutNumber + 1
 
@@ -246,22 +252,22 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             # Get the name of the file without the file extension.
             filename = os.path.splitext(image)[0]
 
-            updateLog(gui, "Working on file %s" % image)
+            gui.updateLog("Working on file %s" % image)
             # Create a new ImageFileData object and read in the image file.
             newData = ImageFileData(prev_image_path + "/" + image)
             newData.ReadImage()
             dimensions = newData.GetImageDimensions()
-            updateLog(gui, "Image width = %d, image height = %d" % dimensions)
+            gui.updateLog("Image width = %d, image height = %d" % dimensions)
 
             # Load the image pixels and pixel locations into arrays
             newPixelsArrays = numpy.load(prev_pixel_path + "/" + filename + ".npz")
             newPixels = newPixelsArrays['pixels']
-            updateLog(gui, "Reading array of size %d from file %s.npz" % (newPixels.shape[0], filename))
+            gui.updateLog("Reading array of size %d from file %s.npz" % (newPixels.shape[0], filename))
             newLocations = newPixelsArrays['locations']
 
             # Load the matrix data and create a new WeightMatrix
             temp = numpy.matrix(numpy.load(prev_matrix_path + "/" + filename + ".npy"))
-            updateLog(gui, "Reading matrix of size %dx%d from file %s.npy" % (temp.shape[0], temp.shape[1], filename))
+            gui.updateLog("Reading matrix of size %dx%d from file %s.npy" % (temp.shape[0], temp.shape[1], filename))
             newWeightMatrix = WM(temp.shape[0], temp.shape[1])
             newWeightMatrix.SetMatrix(temp)
 
@@ -310,7 +316,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             # Calculate the weights of the edges that were removed from the image.
             # Reduce the weight matrix to two new matrices, one for each image segment.
             cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-            updateLog(gui, "Size of cut = %f" % cutSize)
+            gui.updateLog("Size of cut = %f" % cutSize)
 
             if divideType == 2:
                 prevCutSize = cutSize
@@ -338,16 +344,16 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                 cutSize = prevCutSize
                 matrixOne = prevMatrixOne
                 matrixTwo = prevMatrixTwo
-                updateLog(gui, "Size of choosen cut = %f" % cutSize)
+                gui.updateLog("Size of choosen cut = %f" % cutSize)
                 segmentInfo = prevSegInfo
                 segmentOne = segmentInfo['segOne']
                 segmentTwo = segmentInfo['segTwo']
                 posIndices = segmentInfo['posIndices']
                 negIndices = segmentInfo['negIndices']
-                updateLog(gui, "Pixels in image one = %d" % len(posIndices))
-                updateLog(gui, "Pixels in image two = %d" % len(negIndices))
-                updateLog(gui, "Matrix one size = %dx%d" % (matrixOne.GetMatrix().shape[0], matrixOne.GetMatrix().shape[1]))
-                updateLog(gui, "Matrix two size = %dx%d" % (matrixTwo.GetMatrix().shape[0], matrixTwo.GetMatrix().shape[1]))
+                gui.updateLog("Pixels in image one = %d" % len(posIndices))
+                gui.updateLog("Pixels in image two = %d" % len(negIndices))
+                gui.updateLog("Matrix one size = %dx%d" % (matrixOne.GetMatrix().shape[0], matrixOne.GetMatrix().shape[1]))
+                gui.updateLog("Matrix two size = %dx%d" % (matrixTwo.GetMatrix().shape[0], matrixTwo.GetMatrix().shape[1]))
 
 
             # Create two arrays of pixels from the original image using
@@ -363,7 +369,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             #histogramPlotter.AddPlot(image, secondVec)
 
             filename = "/segment_%d_%d" % (cutNumber, imageNumber)
-            updateLog(gui, "Writing image file {}.{}".format(filename, fileFormat))
+            gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
             data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat))  #this will now write to whatever the file format of the original is instead of just tif
             posArrays = {'pixels':posPixels, 'locations':posLocations}
             numpy.savez(pixel_path + "/%s.npz" % filename, **posArrays)
@@ -372,58 +378,54 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             imageNumber = imageNumber + 1
 
             filename = "/segment_%d_%d" % (cutNumber, imageNumber)
-            updateLog(gui, "Writing image file {}.{}\n".format(filename, fileFormat))
+            gui.updateLog("Writing image file {}.{}\n".format(filename, fileFormat))
             data.WriteNewImage(segmentTwo, '{}{}.{}'.format(image_path, filename, fileFormat))
             negArrays = {'pixels':negPixels, 'locations':negLocations}
             numpy.savez(pixel_path + "/%s.npz" % filename, **negArrays)
             numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
             imageNumber = imageNumber + 1
 
-
     if(displayPlots):                                                                          #Added this if statment to handle adding the scatter and histogram plots to the gui's
         scatterPlotter.displayPlots()                                                          #results frame
-        #histogramPlotter.displayPlots()
-
-def mergeImages(imageList):                                                                    #This function if for marging many grayscale images into one multi-channel image, will revisit this later
-
-    allData = []
-    allSizes = []
-    firstImage = ImageFileData(imageList[0])
-    finalFormat = firstImage.GetFileFormat()
-    finalName = ('{}_merged'.format(imageList[0]))
-    mergedData = numpy.zeros((max(allSizes), len(imageList)))
-
-    for image in imageList:
-        data = ImageFileData(image)
-        allData.append(data.GetImageData())
-
-    for data1 in allData:
-        allSizes.append(data1.GetImageSize())
-        for data2 in allData:
-            if (data1.GetImageDimensions() != data2.GetImageDimensions()):
-                answer = qt.QMessageBox.warning('Image dimensions are not equal. This will work, but all images will align at their TOP LEFT CORNERS, not their centers.', 'Ok', 'Cancel')
-                if(answer == 1): return False
-            if(data1.GetImageFormat() != data2.GetImageFormat()):
-                answer = qt.QMessageBox('Image formats are not the same. This will work, but the final image will be written in the format of the first image in the file list.', 'Ok', 'Cancel')
-                if(answer == 1): return False
-
-    try:
-        for i in range(len(allData)):
-            for j in range(len(allData[i])):
-                mergedData[j][i] = allData[i][j]
-
-        mergedImage = Image.new(self.imageMode, mergedData.size)
-        mergedImage.putdata(mergedData)
-        mergedImage.save(finalName, finalFormat)
-        return True
-
-    except:
-        qt.QMessageBox('Image merge failed.')
-        return False
+        #histogramPlotter.show()
 
 
-def updateLog(gui, string):                                                                         #This function is for adding lines to the gui's activit log
-    gui.updateLog(string)
+# def mergeImages(imageList):                                                                    #This function if for marging many grayscale images into one multi-channel image, will revisit this later
+#
+#     allData = []
+#     allSizes = []
+#     firstImage = ImageFileData(imageList[0])
+#     finalFormat = firstImage.GetFileFormat()
+#     finalName = ('{}_merged'.format(imageList[0]))
+#     mergedData = numpy.zeros((max(allSizes), len(imageList)))
+#
+#     for image in imageList:
+#         data = ImageFileData(image)
+#         allData.append(data.GetImageData())
+#
+#     for data1 in allData:
+#         allSizes.append(data1.GetImageSize())
+#         for data2 in allData:
+#             if (data1.GetImageDimensions() != data2.GetImageDimensions()):
+#                 answer = qt.QMessageBox.warning('Image dimensions are not equal. This will work, but all images will align at their TOP LEFT CORNERS, not their centers.', 'Ok', 'Cancel')
+#                 if(answer == 1): return False
+#             if(data1.GetImageFormat() != data2.GetImageFormat()):
+#                 answer = qt.QMessageBox('Image formats are not the same. This will work, but the final image will be written in the format of the first image in the file list.', 'Ok', 'Cancel')
+#                 if(answer == 1): return False
+#
+#     try:
+#         for i in range(len(allData)):
+#             for j in range(len(allData[i])):
+#                 mergedData[j][i] = allData[i][j]
+#
+#         mergedImage = Image.new(self.imageMode, mergedData.size)
+#         mergedImage.putdata(mergedData)
+#         mergedImage.save(finalName, finalFormat)
+#         return True
+#
+#     except:
+#         qt.QMessageBox('Image merge failed.')
+#         return False
 
 
 def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, iterations):
@@ -448,7 +450,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         segmentDir = '{}/{}_segmentation/{}_{}/'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile, suffix)
         suffix += 1
 
-    data = ImageFileData(imageFile)
+    data = ImageFileData(imagePath)
     # Read in the image and initialize information (size, mode, etc.)
     data.ReadImage()
 
@@ -469,26 +471,29 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     sigmaI = numpy.var(imageData)
     sigmaX = numpy.var(locationValues)
 
-    updateLog(gui, "Image mode is %s" % data.GetImageMode())
-    updateLog(gui, "Image format is %s" % fileFormat)
-    updateLog(gui, "Number of image pixels = %d" % imageSize)
-    updateLog(gui, "Image width = %d, image height = %d" % dimensions)
-    updateLog(gui, "Intensity variance = %f" % sigmaI)
-    updateLog(gui, "Location variance = %f" % sigmaX)
+    gui.updateLog('---XSD Image Segmentation---\n')
+    gui.updateLog("Image mode is %s" % data.GetImageMode())
+    gui.updateLog("Image format is %s" % fileFormat)
+    gui.updateLog("Number of image pixels = %d" % imageSize)
+    gui.updateLog("Image width = %d, image height = %d" % dimensions)
+    gui.updateLog("Intensity variance = %f" % sigmaI)
+    gui.updateLog("Location variance = %f" % sigmaX)
     gui.advanceProgressBar(20)                                                                      #All of these lines change the graphic of the gui's progress bar
 
 
-    updateLog(gui, "Creating weight matrix")
+    gui.updateLog("\n---Creating weight matrix---\n")
     weightMatrix = WM(data.size, data.size)
     weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
 
     t0 = time.time()
     weightMatrix.CreateMatrix(sigmaI, sigmaX)
     t2 = time.time() - t0
-    updateLog(gui, 'Parallel building of weight matrix took {} seconds'.format(t2))
+    gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
     gui.advanceProgressBar(50)
 
+    gui.updateLog('\n---Starting segmentation---\n')
     SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations) #now passes fileformat, displayPlots, and the desired number of iterations
     gui.advanceProgressBar(100)
+    gui.updateLog('---Segmentation completed. Click the results icon in the toolbar to view segments and plots.---')
 
     return segmentDir                                                                              #added return statement

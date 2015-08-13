@@ -40,6 +40,7 @@ class ScatterPlot ():
         plt.figure(self.figure_number)
         plt.subplot(111)
         plt.scatter(x_values, y_values, s=self.area)
+        plt.title(title)
 
         return
 

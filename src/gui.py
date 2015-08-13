@@ -114,6 +114,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         viewMenu.addAction(self.viewResults)
         return
 
+
     def toolbar(self):
 
         #Creating toolbar
@@ -242,6 +243,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         mainLayout.addWidget(bottomFrame)
         return
 
+
     def buildLogFrame(self):
 
         #This frame displays a log of the current status of the algorithms progress
@@ -355,6 +357,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.fileLabel.setFont(self.emphasis1)
         return
 
+
     def singleImageView(self):
 
         #Adjusts the neccessary widgets when the main frame is switched to single-image
@@ -371,10 +374,12 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.fileLabel.setFont(self.emphasis1)
         return
 
+
     def logView(self):
         #Brings the activity log into view
         self.frameStack.setCurrentWidget(self.logFrame)
         return
+
 
     def resultsView(self):
         #Brigns the results page into view
@@ -420,13 +425,22 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #open the image from file to be segmented
         if(self.type == 0):
-            self.imagePath = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
+            temp = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
+
+            if(temp != ''):
+                #This statement prevents a bug where the user hits 'cancel' on the file open window
+                #after already having opened one previously
+                self.imagePath = temp
+
             if(len(self.imagePath) != 0):
                 self.filename = os.path.split(self.imagePath)[-1]
                 self.fileLabel.setText('Filename: \n{}'.format(self.filename))
                 self.fileLabel.setFont(self.emphasis1)
         else:
-            imagePaths = qt.QFileDialog.getOpenFileNames(self, 'Open Images')
+            temp = qt.QFileDialog.getOpenFileNames(self, 'Open Images')
+
+            if(temp != ''):
+                imagePaths= temp
 
             for imagePath in imagePaths:
                 self.filenames.append(os.path.split(str(imagePath))[-1])
@@ -479,6 +493,8 @@ class XSDImageSegmentation(qt.QMainWindow):
     def resetAll(self):
 
         #Resets everything in the gui to its initial state
+        self.enableAll()
+
         self.imagePath = None
         self.divideType = 0
         self.maxPixelDist = 0
@@ -615,6 +631,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         qt.QMessageBox.warning(self, 'Error', 'Not yet implemented', 'Ok')
         return
 
+
     def addPlots(self, figures, plotType):
         #adds a list of scatter figures built in plotframe.py to the results frame
         #plotType: 0 = scatter, 1 = histogram
@@ -644,6 +661,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 j = 0
                 i += 1
         return
+
 
     def addImageStructure(self):
         #Creates and organizes a structure for all segmented images written in imagedata.py to be added to the results
@@ -676,6 +694,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         return
 
+
     def addImages(self, cuts, i, j):
         #helper function for addImageStructure() above, inserts the images one by one
 
@@ -695,7 +714,6 @@ class XSDImageSegmentation(qt.QMainWindow):
                 j = 0
                 i += 1
         return(i)
-
 
 
     def closeApplication(self):
