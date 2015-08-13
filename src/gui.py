@@ -735,6 +735,10 @@ class XSDImageSegmentation(qt.QMainWindow):
                 i += 1
         return(i)
 
+    def returnDescritized(self, descritizedPath):
+        #Sets the "original image" as the newly created descritized image, if checked
+        self.imagePath = descritizedPath
+
 
     def closeApplication(self):
         answer = qt.QMessageBox.question(self, 'Exit', 'Exit the application?', qt.QMessageBox.No | qt.QMessageBox.Yes)

@@ -152,7 +152,7 @@ class WeightMatrix(Matrix):
         return pixelAData                                                  #This is the data for one pixel. numPixels # of these returned to CreateMatrix to append all values to self.data
 
 
-    def CreateMatrix(self, sigmaI, sigmaX):                           #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
+    def CreateMatrix(self, sigmaI, sigmaX):                                #Creates a process pool and distributes theyre work to all pixels, to calculate weight matrix
 
         gui = shareGui.getGui()
         cpus = mp.cpu_count()

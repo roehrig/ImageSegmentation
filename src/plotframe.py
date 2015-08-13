@@ -7,6 +7,7 @@ import math
 import shareGui
 
 def clearAll():
+    #Erases all frame windows
     plt.close('all')
 
 class ScatterPlot ():

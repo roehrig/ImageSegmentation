@@ -3,12 +3,15 @@ __author__ = 'roehrig'
 from PIL import Image
 from PIL import ImageFilter
 from pixel import *
+import shareGui
+import os
 
 class ImageData():
 
-    def __init__(self, fileName=None, data=None, width=0, height=0):
+    def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 
         self.file = fileName
+        self.segmentDir = segmentDir
         self.dataImage = None
         self.data = data
         self.width = width
@@ -63,14 +66,15 @@ class ImageArrayData(ImageData):
 
 class ImageFileData(ImageData):
 
-    def __init__(self, fileName=None, data=None, width=0, height=0):
+    def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 
-        ImageData.__init__(self, fileName, data, width, height)
+        ImageData.__init__(self, fileName, segmentDir, data, width, height)
 
         return
 
     def ReadImage(self):
 
+        self.imagePath, self.imageFile = os.path.split(self.file)
         self.dataImage = Image.open(self.file, mode='r')
         self.width = self.dataImage.size[0]
         self.height = self.dataImage.size[1]
@@ -78,6 +82,7 @@ class ImageFileData(ImageData):
         self.size = len(self.data)
         self.fileFormat = self.dataImage.format
         self.imageMode = self.dataImage.mode
+        self.iteration = 1
 
         # Create a list of Pixel objects (see pixel.py)
         self.pixels = PixelArray(self.width, self.height, self.data)
@@ -109,6 +114,13 @@ class ImageFileData(ImageData):
         :return:
         '''
 
+        shareGui.getGui().updateLog('Discretizing image')
+
+        temp = numpy.zeros(self.size)
+
+        for i in range(self.size):
+            temp[i] = self.data[i]
+
         sorted_values = sorted(self.data)
         pixel_values = self.pixels.GetPixelArray()
 
@@ -120,19 +132,26 @@ class ImageFileData(ImageData):
         for i in range (self.height):
             for j in range(self.width):
                 stride = (self.width * i) + j
-                if self.data[stride] >= median:
-                    self.data[stride] = maxVal
+                if temp[stride] >= median:
+                    temp[stride] = maxVal
                     pixel_values[stride] = maxVal
                 else:
-                    self.data[stride] = minVal
+                    temp[stride] = minVal
                     pixel_values[stride] = minVal
 
-        return
+        newFile= '{}{}_descritized.{}'.format(self.segmentDir, self.imageFile.split('.')[0], self.fileFormat)
+        self.WriteNewImage(temp, newFile)
+        shareGui.getGui().returnDescritized(newFile)
+        self.__init__(newFile)
+        self.ReadImage()
+
 
     def SmoothImage(self, iterations):
 
         for i in range(iterations):
+            shareGui.getGui().updateLog('Smoothing iteration #%d' % self.iteration)
             newImage = self.dataImage.filter(ImageFilter.SMOOTH_MORE)
+            self.iteration += 1
 
         self.dataImage = newImage
         self.data = self.dataImage.getdata()

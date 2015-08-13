@@ -450,15 +450,26 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         segmentDir = '{}/{}_segmentation/{}_{}/'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile, suffix)
         suffix += 1
 
-    data = ImageFileData(imagePath)
+    #Creates the segmentation directory
+    if not os.path.isdir(segmentDir):
+        try:
+            os.makedirs(segmentDir)
+        except OSError:
+            if not os.path.isdir(segmentDir):
+                raise
+
+    data = ImageFileData(imagePath, segmentDir)
     # Read in the image and initialize information (size, mode, etc.)
     data.ReadImage()
 
-    if discretize == True:
-        data.DiscretizeImage()
-        gui.advanceProgressBar(5)
+    gui.updateLog('--- Reading Image ---\n')
+
     if smoothValue > 0:
         data.SmoothImage(smoothValue)
+        gui.advanceProgressBar(5)
+    if discretize == True:
+        #Descritizes the image, using 255 (white) as the maximum value
+        data.DiscretizeImage(255, 0)
         gui.advanceProgressBar(10)
 
     imageData = data.GetImageData()
@@ -471,7 +482,6 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     sigmaI = numpy.var(imageData)
     sigmaX = numpy.var(locationValues)
 
-    gui.updateLog('--- Reading Image ---\n')
     gui.updateLog("Image mode is %s" % data.GetImageMode())
     gui.updateLog("Image format is %s" % fileFormat)
     gui.updateLog("Number of image pixels = %d" % imageSize)
