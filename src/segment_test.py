@@ -215,7 +215,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     numpy.save(matrix_path + filename + "2.npy", matrixTwo.GetMatrix())
 
     scatterPlotter = ScatterPlot("Original Image", secondVec)
-    #histogramPlotter = HistogramPlot("Original image", secondVec)
+    histogramPlotter = HistogramPlot("Original image", secondVec)
 
     gui.advanceProgressBar(60)
 
@@ -366,7 +366,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             negLocations = numpy.take(newLocations, negIndices)
 
             scatterPlotter.AddPlot(image, secondVec)
-            #histogramPlotter.AddPlot(image, secondVec)
+            histogramPlotter.AddPlot(image, secondVec)                                          #histogram plots are now created on every iteration, and displayed in the gui results
 
             filename = "/segment_%d_%d" % (cutNumber, imageNumber)
             gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
@@ -387,7 +387,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
     if(displayPlots):                                                                          #Added this if statment to handle adding the scatter and histogram plots to the gui's
         scatterPlotter.displayPlots()                                                          #results frame
-        #histogramPlotter.show()
+        histogramPlotter.displayPlots()
 
 
 # def mergeImages(imageList):                                                                    #This function if for marging many grayscale images into one multi-channel image, will revisit this later
@@ -471,7 +471,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     sigmaI = numpy.var(imageData)
     sigmaX = numpy.var(locationValues)
 
-    gui.updateLog('---XSD Image Segmentation---\n')
+    gui.updateLog('--- Reading Image ---\n')
     gui.updateLog("Image mode is %s" % data.GetImageMode())
     gui.updateLog("Image format is %s" % fileFormat)
     gui.updateLog("Number of image pixels = %d" % imageSize)
@@ -481,7 +481,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     gui.advanceProgressBar(20)                                                                      #All of these lines change the graphic of the gui's progress bar
 
 
-    gui.updateLog("\n---Creating weight matrix---\n")
+    gui.updateLog("\n--- Creating weight matrix ---\n")
     weightMatrix = WM(data.size, data.size)
     weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
 
@@ -491,9 +491,9 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
     gui.advanceProgressBar(50)
 
-    gui.updateLog('\n---Starting segmentation---\n')
+    gui.updateLog('\n--- Starting segmentation ---\n')
     SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations) #now passes fileformat, displayPlots, and the desired number of iterations
     gui.advanceProgressBar(100)
-    gui.updateLog('---Segmentation completed. Click the results icon in the toolbar to view segments and plots.---')
+    gui.updateLog('--- Segmentation completed. Click the results icon in the toolbar to view segments and plots. ---')
 
     return segmentDir                                                                              #added return statement

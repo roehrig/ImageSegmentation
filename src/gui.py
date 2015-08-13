@@ -304,8 +304,10 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #Creating components
         self.resultsTitle = qt.QLabel('Results', self.resultsFrame)
-        self.noResults = qt.QLabel('Run segmentation or open results from file to display.')
+        self.noResults = qt.QLabel('Run segmentation or open results from file to display.', self.segmentsFrame)
         self.resultsReset = qt.QPushButton('Reset', self.resultsFrame)
+        self.scatterAxesLabels = qt.QLabel('x = pixel\ny = second eigenvector', self.scatterFrame)
+        self.histogramAxesLabels = qt.QLabel('x = \ny = second eigenvector', self.histogramFrame)
 
         #Configuring components
         self.resultsTitle.setFont(self.header)
@@ -322,6 +324,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.scatterScroll.setWidget(self.scatterFrame)
         self.histogramScroll.setWidget(self.histogramFrame)
         self.segmentsScroll.setWidget(self.segmentsFrame)
+        self.scatterAxesLabels.setFont(self.header)
+        self.histogramAxesLabels.setFont(self.header)
         #To make scrollbars behave appropriately:
         scrolls = [self.segmentsScroll, self.scatterScroll, self.histogramScroll]
         for scroll in scrolls:
@@ -334,6 +338,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.histogramTabLayout.addWidget(self.histogramScroll)
         self.segmentsTabLayout.addWidget(self.segmentsScroll)
         self.segmentsLayout.addWidget(self.noResults)
+        self.scatterLayout.addWidget(self.scatterAxesLabels)
+        self.histogramLayout.addWidget(self.histogramAxesLabels)
         resultsLayout.addWidget(self.resultsTitle)
         resultsLayout.addWidget(self.resultTabs)
         resultsLayout.addWidget(self.resultsReset)
@@ -530,12 +536,13 @@ class XSDImageSegmentation(qt.QMainWindow):
         else:
             self.fileLabel.setText('Filenames:')
 
+        #This loop clears all images and plots from the results tabs
         layouts = [self.scatterLayout, self.histogramLayout, self.segmentsLayout]
         for layout in layouts:
-            for i in reversed(range(layout.count())):
+            for i in reversed(range(layout.count()) - 1):
+                #The '-1' here keeps the axes labels and no results message in the tabs
                 layout.itemAt(i).widget().setParent(None)
 
-        self.segmentsLayout.addWidget(self.noResults)
         self.noResults.show()
         self.resultTabs.setTabEnabled(1, False)
         self.resultTabs.setTabEnabled(2, False)
@@ -643,8 +650,11 @@ class XSDImageSegmentation(qt.QMainWindow):
             frame = self.histogramFrame
             layout = self.histogramLayout
 
-        i = 0
+        i = 1
         j = 0
+        #maxColumn is how far over the images will line to the right before starting a "new line" of plots
+        maxColumn = 2
+
         for fig in figures:
             figure = qt.QFrame(frame)
             figureLayout = qt.QVBoxLayout(figure)
@@ -655,7 +665,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             figure.setMinimumSize(400,400)
             figure.setMaximumSize(500,500)
             layout.addWidget(figure, i, j)
-            if j < 2:
+            if j < maxColumn:
                 j += 1
             else:
                 j = 0
@@ -668,20 +678,22 @@ class XSDImageSegmentation(qt.QMainWindow):
         #page under the 'Segmentation' tab
 
         cuts = []
-        c = 1
-        i = 1
-        j = 0
+        c = 1   #cut number
+        i = 1   #row
+        j = 0   #column
         originalLabel = qt.QLabel('Original Image', self.segmentsFrame)
         originalLabel.setFont(self.emphasis1)
         self.segmentsLayout.addWidget(originalLabel, 0, 0)
         cuts.append(self.imagePath)
         self.addImages(cuts, i, j)
+        #'dirs' gets the list of directories created during segmentation (to get all "cut_n"'s)
         dirs = next(os.walk(self.segmentPath))[1]
 
         for dir in dirs:
             i += 1
             j = 0
             if dir.find('cut_') != -1:
+                #'cuts' gets list of all images in the current "cut_n" directory
                 cuts = next(os.walk('{}{}'.format(self.segmentPath, dir)))[2]
                 for n in range(len(cuts)):
                     cuts[n] = self.segmentPath + ('cut_%d/' % c) + cuts[n]
@@ -700,6 +712,8 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         width = 150
         height = 150
+        #maxColumn is how far over the images will line to the right before starting a "new line" of images
+        maxColumn = 2
 
         for cut in cuts:
             pixMap = qt.QPixmap(cut)
@@ -708,7 +722,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             scaledMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
             imageHolder.setPixmap(scaledMap)
             self.segmentsLayout.addWidget(imageHolder, i, j)
-            if j < 2:
+            if j < maxColumn:
                 j += 1
             else:
                 j = 0
