@@ -2,12 +2,16 @@ __author__ = 'hollowed'
 
 import sys
 import os
+import subprocess
+import platform
 import segment_test
 import plotframe
 import shareGui
+from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
+
 
 
 class XSDImageSegmentation(qt.QMainWindow):
@@ -198,6 +202,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.segmentsCheck.toggled.connect(self.toggleResultsTool)
         self.logCheck.toggled.connect(self.toggleLogTool)
         self.maxPixelDistSpin.setMinimum(2)
+        self.smoothingIterationsSpin.setMinimum(1)
         self.mainTitle.setMaximumHeight(40)
         self.mainTitle.setFont(self.header)
         self.fileLabel.setFont(self.emphasis2)
@@ -294,6 +299,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.scatterFrame = qt.QFrame(self.scatterScroll)
         self.histogramFrame = qt.QFrame(self.histogramScroll)
         self.segmentsFrame = qt.QFrame(self.segmentsScroll)
+        self.bottomResultsFrame = qt.QFrame(self.resultsFrame)
 
         resultsLayout = qt.QVBoxLayout(self.resultsFrame)
         self.scatterTabLayout = qt.QVBoxLayout(self.scatterTab)
@@ -302,11 +308,14 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.histogramLayout = qt.QGridLayout(self.histogramFrame)
         self.segmentsTabLayout = qt.QVBoxLayout(self.segmentsTab)
         self.segmentsLayout = qt.QGridLayout(self.segmentsFrame)
+        self.bottomResultsLayout = qt.QHBoxLayout(self.bottomResultsFrame)
 
         #Creating components
         self.resultsTitle = qt.QLabel('Results', self.resultsFrame)
         self.noResults = qt.QLabel('Run segmentation or open results from file to display.', self.segmentsFrame)
-        self.resultsReset = qt.QPushButton('Reset', self.resultsFrame)
+        self.resultsReset = qt.QPushButton('Reset', self.bottomResultsFrame)
+        self.openSegmentDir = qt.QPushButton('Open segment location', self.bottomResultsFrame)
+        self.resultsSpacer = qt.QLabel(' ', self.bottomResultsFrame)
         self.scatterAxesLabels = qt.QLabel('x-axis = pixel\ny-axis = second eigenvector', self.scatterFrame)
         self.histogramAxesLabels = qt.QLabel('x-axis = \ny-axis = second eigenvector', self.histogramFrame)
 
@@ -317,6 +326,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.resultsReset.clicked.connect(self.resetAll)
         self.resultsReset.setStyleSheet('background-color: lightblue')
         self.resultsReset.setMaximumWidth(80)
+        self.openSegmentDir.clicked.connect(self.openSegmentDirectory)
+        self.openSegmentDir.setDisabled(True)
+        self.openSegmentDir.setMaximumWidth(160)
         self.resultTabs.addTab(self.segmentsTab, 'Segmentation')
         self.resultTabs.addTab(self.scatterTab, 'Scatter Plots')
         self.resultTabs.addTab(self.histogramTab, 'Histograms')
@@ -341,9 +353,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.segmentsLayout.addWidget(self.noResults, 0, 0)
         self.scatterLayout.addWidget(self.scatterAxesLabels, 0, 0)
         self.histogramLayout.addWidget(self.histogramAxesLabels, 0, 0)
+        self.bottomResultsLayout.addWidget(self.resultsReset)
+        self.bottomResultsLayout.addWidget(self.openSegmentDir)
+        self.bottomResultsLayout.addWidget(self.resultsSpacer)
         resultsLayout.addWidget(self.resultsTitle)
         resultsLayout.addWidget(self.resultTabs)
-        resultsLayout.addWidget(self.resultsReset)
+        resultsLayout.addWidget(self.bottomResultsFrame)
         return
 
 #------------------------------TOOLBAR BUTTON FUNCTIONS------------------------------
@@ -394,7 +409,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-#------------------------------BUTTON/CHECKBOX ACTION FUNCTIONS------------------------------
+#------------------------------WIDGET ACTION FUNCTIONS------------------------------
 
 
     def toggleSmoothing(self):
@@ -430,6 +445,12 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def openImage(self):
 
+        if(self.isReset == False):
+            answer = self.showMessage('Error', 'Window must be reset before segmenting again.\nReset Now?', 'question')
+            if answer == 0:
+                self.resetAll()
+            return
+
         #open the image from file to be segmented
         if(self.type == 0):
             temp = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
@@ -456,6 +477,19 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.fileLabel.setFont(self.emphasis1)
         return
 
+    def blowupImage(self, cut):
+        def blowUp():
+            image = Image.open(cut)
+            image.show()
+        return blowUp
+
+    def openSegmentDirectory(self):
+        if platform.system() == "Windows":
+            os.startfile(self.segmentPath)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", self.segmentPath])
+        else:
+            subprocess.Popen(["xdg-open", self.segmentPath])
 
     def runSegmentation(self):
 
@@ -499,6 +533,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.isReset = False
             self.noResults.hide()
             self.addImageStructure()
+            self.openSegmentDir.setDisabled(False)
 
         return
 
@@ -538,6 +573,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.log.clear()
         self.fileList.clear()
         self.fileLabel.setFont(self.emphasis2)
+        self.openSegmentDir.setDisabled(True)
 
         if(self.type == 0):
             self.fileLabel.setText('Filename: \n{}'.format(self.filename))
@@ -607,18 +643,9 @@ class XSDImageSegmentation(qt.QMainWindow):
     def allValid(self):
 
         #Check for any potential errors before segmenting
-        if(self.isReset == False):
-            self.showMessage('Error', 'Window must be reset before segmenting again', 'message')
-            return  False
-
         if(self.imagePath == None):
             self.showMessage('Error', 'No image selected', 'message')
             return  False
-
-        if(self.smoothCheck.isChecked() and self.smoothingIterations == 0):
-            self.showMessage('Error', 'Number of smoothing iterations cannot be zero.', 'message')
-            return False
-
         else:
             return True
 
@@ -643,10 +670,13 @@ class XSDImageSegmentation(qt.QMainWindow):
     def showMessage(self, title, string, type):
 
         #Message strings can be passed to this function from any module as to prevent having to import PyQt everywhere to display messages.
-        #'warning's return an answer to a prompt (either 'Ok' or 'Cancel') while message simply displays the given string
+        #'warning' and 'question' return an answer to a prompt (either 'Ok'/'Cancel' or 'Yes'/'No') while 'message' simply displays the given string
 
         if(type == 'warning'):
             answer = qt.QMessageBox.warning(self, title, string, 'Ok', 'Cancel')
+            return answer
+        if(type == 'question'):
+            answer = qt.QMessageBox.warning(self, title, string, 'Yes', 'No')
             return answer
         if(type == 'message'):
             qt.QMessageBox.information(self, title, string, 'Ok')
@@ -711,7 +741,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         originalLabel.setFont(self.emphasis1)
         self.segmentsLayout.addWidget(originalLabel, 0, 0)
         cuts.append(self.imagePath)
-        self.addImages(cuts, i, j)
+        self.addImages(cuts, i, j, '>> Open image file')
         #'dirs' gets the list of directories created during segmentation (to get all "cut_n"'s)
         dirs = next(os.walk(self.segmentPath))[1]
 
@@ -729,12 +759,12 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.segmentsLayout.addWidget(cutLabel, i, 0)
                 c += 1
                 i += 1
-                i = self.addImages(cuts, i, j)
+                i = self.addImages(cuts, i, j, '>>')
 
         return
 
 
-    def addImages(self, cuts, i, j):
+    def addImages(self, cuts, i, j, buttonText):
         #helper function for addImageStructure() above, inserts the images one by one
 
         width = 150
@@ -743,12 +773,20 @@ class XSDImageSegmentation(qt.QMainWindow):
         maxColumn = 2
 
         for cut in cuts:
+            imageFrame = qt.QFrame(self.segmentsFrame)
+            imageLayout = qt.QVBoxLayout(imageFrame)
+            blowupButton = qt.QPushButton(buttonText, imageFrame)
+            blowupButton.setMaximumWidth(width)
+            blowupButton.clicked.connect(self.blowupImage(cut))
+            blowupButton.setToolTip('Open image file')
             pixMap = qt.QPixmap(cut)
-            imageHolder = qt.QLabel(self.segmentsFrame)
+            imageHolder = qt.QLabel(imageFrame)
             imageHolder.setMinimumSize(width, height)
             scaledMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
             imageHolder.setPixmap(scaledMap)
-            self.segmentsLayout.addWidget(imageHolder, i, j)
+            imageLayout.addWidget(imageHolder)
+            imageLayout.addWidget(blowupButton)
+            self.segmentsLayout.addWidget(imageFrame, i, j)
             if j < maxColumn:
                 j += 1
             else:
