@@ -7,6 +7,7 @@ import platform
 import segment_test
 import plotframe
 import shareGui
+import time
 from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -41,8 +42,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.discretize = False
         self.displayPlts = True
         self.displayLog = True
-        self.displaySegments = True
         self.iterations = 0
+        self.displayRawData = False
+        self.rawData = None
 
         self.frames()
         self.mainMenu()
@@ -185,7 +187,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.iterationsPrompt = qt.QLabel('Algorithm Iterations:', paramsBox)
         self.iterationsSpin = qt.QSpinBox(paramsBox)
         self.plotsCheck = qt.QCheckBox('Display Plots', outputBox)
-        self.segmentsCheck = qt.QCheckBox('Display all segments', outputBox)
+        self.rawDataCheck = qt.QCheckBox('Display raw image data', outputBox)
         self.logCheck = qt.QCheckBox('Display activity log', outputBox)
         self.segment = qt.QPushButton('Segment', bottomFrame)
         self.segment.setStyleSheet('background-color: lightgreen')
@@ -198,11 +200,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.reset.clicked.connect(self.resetAll)
         self.segment.clicked.connect(self.runSegmentation)
         self.smoothCheck.toggled.connect(self.toggleSmoothing)
-        self.plotsCheck.toggled.connect(self.toggleResultsTool)
-        self.segmentsCheck.toggled.connect(self.toggleResultsTool)
-        self.logCheck.toggled.connect(self.toggleLogTool)
         self.maxPixelDistSpin.setMinimum(2)
-        self.smoothingIterationsSpin.setMinimum(1)
+        self.smoothingIterationsSpin.setMinimum(0)
         self.mainTitle.setMaximumHeight(40)
         self.mainTitle.setFont(self.header)
         self.fileLabel.setFont(self.emphasis2)
@@ -218,7 +217,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.progress.setDisabled(True)
         self.plotsCheck.setChecked(True)
         self.logCheck.setChecked(True)
-        self.segmentsCheck.setChecked(True)
+        self.rawDataCheck.setChecked(False)
 
         #Packing components
         filesLayout.addWidget(self.open)
@@ -235,7 +234,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.smoothingIterationsPrompt, 3, 1)
         paramsLayout.addWidget(self.smoothingIterationsSpin, 4, 1)
         outputLayout.addWidget(self.plotsCheck, 0,0)
-        outputLayout.addWidget(self.segmentsCheck, 0, 1)
+        outputLayout.addWidget(self.rawDataCheck, 0, 1)
         outputLayout.addWidget(self.logCheck, 1, 0)
         leftLayout.addWidget(paramsBox)
         leftLayout.addWidget(outputBox)
@@ -255,9 +254,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         #This frame displays a log of the current status of the algorithms progress
 
         #Creating frames/layouts
-        logLayout = qt.QVBoxLayout(self.logFrame)
         logProgressFrame = qt.QFrame(self.logFrame)
 
+        logLayout = qt.QVBoxLayout(self.logFrame)
         logProgressLayout = qt.QHBoxLayout(logProgressFrame)
 
         #Creating components
@@ -293,6 +292,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.scatterTab = qt.QFrame(self.resultTabs)
         self.histogramTab = qt.QFrame(self.resultTabs)
         self.segmentsTab = qt.QFrame(self.resultTabs)
+        self.rawDataTab = qt.QFrame(self.resultTabs)
         self.scatterScroll = qt.QScrollArea(self.scatterTab)
         self.histogramScroll = qt.QScrollArea(self.histogramTab)
         self.segmentsScroll = qt.QScrollArea(self.segmentsTab)
@@ -309,6 +309,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.segmentsTabLayout = qt.QVBoxLayout(self.segmentsTab)
         self.segmentsLayout = qt.QGridLayout(self.segmentsFrame)
         self.bottomResultsLayout = qt.QHBoxLayout(self.bottomResultsFrame)
+        self.rawDataLayout = qt.QVBoxLayout(self.rawDataTab)
 
         #Creating components
         self.resultsTitle = qt.QLabel('Results', self.resultsFrame)
@@ -318,6 +319,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.resultsSpacer = qt.QLabel(' ', self.bottomResultsFrame)
         self.scatterAxesLabels = qt.QLabel('x-axis = pixel\ny-axis = second eigenvector', self.scatterFrame)
         self.histogramAxesLabels = qt.QLabel('x-axis = \ny-axis = second eigenvector', self.histogramFrame)
+        self.rawDataDisplay = qt.QPlainTextEdit(self.rawDataTab)
 
         #Configuring components
         self.resultsTitle.setFont(self.header)
@@ -329,16 +331,15 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.openSegmentDir.clicked.connect(self.openSegmentDirectory)
         self.openSegmentDir.setDisabled(True)
         self.openSegmentDir.setMaximumWidth(160)
-        self.resultTabs.addTab(self.segmentsTab, 'Segmentation')
-        self.resultTabs.addTab(self.scatterTab, 'Scatter Plots')
-        self.resultTabs.addTab(self.histogramTab, 'Histograms')
         self.resultTabs.setTabEnabled(1, False)
         self.resultTabs.setTabEnabled(2, False)
+        self.resultTabs.setTabEnabled(3, False)
         self.scatterScroll.setWidget(self.scatterFrame)
         self.histogramScroll.setWidget(self.histogramFrame)
         self.segmentsScroll.setWidget(self.segmentsFrame)
         self.scatterAxesLabels.setFont(self.emphasis1)
         self.histogramAxesLabels.setFont(self.emphasis1)
+        self.rawDataDisplay.setReadOnly(True)
         #To make scrollbars behave appropriately:
         scrolls = [self.segmentsScroll, self.scatterScroll, self.histogramScroll]
         for scroll in scrolls:
@@ -356,6 +357,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.bottomResultsLayout.addWidget(self.resultsReset)
         self.bottomResultsLayout.addWidget(self.openSegmentDir)
         self.bottomResultsLayout.addWidget(self.resultsSpacer)
+        self.rawDataLayout.addWidget(self.rawDataDisplay)
+        self.resultTabs.addTab(self.segmentsTab, 'Segmentation')
+        self.resultTabs.addTab(self.scatterTab, 'Scatter Plots')
+        self.resultTabs.addTab(self.histogramTab, 'Histograms')
+        self.resultTabs.addTab(self.rawDataTab, 'Raw Image Data')
         resultsLayout.addWidget(self.resultsTitle)
         resultsLayout.addWidget(self.resultTabs)
         resultsLayout.addWidget(self.bottomResultsFrame)
@@ -411,134 +417,6 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 #------------------------------WIDGET ACTION FUNCTIONS------------------------------
 
-
-    def toggleSmoothing(self):
-
-        if(self.smoothCheck.isChecked()):
-            self.smoothingIterationsSpin.setDisabled(False)
-            self.smoothingIterationsPrompt.setDisabled(False)
-        else:
-            self.smoothingIterationsSpin.setDisabled(True)
-            self.smoothingIterationsPrompt.setDisabled(True)
-        return
-
-
-    def toggleResultsTool(self):
-
-        if(self.plotsCheck.isChecked() or self.segmentsCheck.isChecked()):
-            self.resultsTool.setDisabled(False)
-        else:
-            self.resultsTool.setDisabled(True)
-        return
-
-
-    def toggleLogTool(self):
-
-        if(self.logCheck.isChecked()):
-            self.logTool.setDisabled(False)
-            self.viewLog.setDisabled(False)
-        else:
-            self.logTool.setDisabled(True)
-            self.viewLog.setDisabled(True)
-        return
-
-
-    def openImage(self):
-
-        if(self.isReset == False):
-            answer = self.showMessage('Error', 'Window must be reset before segmenting again.\nReset Now?', 'question')
-            if answer == 0:
-                self.resetAll()
-            return
-
-        #open the image from file to be segmented
-        if(self.type == 0):
-            temp = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
-
-            if(temp != ''):
-                #This statement prevents a bug where the user hits 'cancel' on the file open window
-                #after already having opened one previously
-                self.imagePath = temp
-                self.filename = os.path.split(self.imagePath)[-1]
-                self.fileLabel.setText('Filename: \n{}'.format(self.filename))
-                self.fileLabel.setFont(self.emphasis1)
-        else:
-            temp = qt.QFileDialog.getOpenFileNames(self, 'Open Images')
-
-            if(temp != ''):
-                imagePaths= temp
-
-            for imagePath in imagePaths:
-                self.filenames.append(os.path.split(str(imagePath))[-1])
-            for file in self.filenames:
-                self.fileList.addItem(file)
-
-            self.imagePath = imagePaths[0]
-            self.fileLabel.setFont(self.emphasis1)
-        return
-
-    def blowupImage(self, cut):
-        def blowUp():
-            image = Image.open(cut)
-            image.show()
-        return blowUp
-
-    def openSegmentDirectory(self):
-        if platform.system() == "Windows":
-            os.startfile(self.segmentPath)
-        elif platform.system() == "Darwin":
-            subprocess.Popen(["open", self.segmentPath])
-        else:
-            subprocess.Popen(["xdg-open", self.segmentPath])
-
-    def runSegmentation(self):
-
-        #Runs the segmentation by calling segment_test and passing the neccessary parameters, only
-        # after the gui is checked to be in a valid state that won't cause errors
-        self.discretize = self.discretizeCheck.isChecked()
-        self.divideType = int(self.divideTypeCombo.currentText())
-        self.maxPixelDist = self.maxPixelDistSpin.value()
-        self.smoothingIterations = self.smoothingIterationsSpin.value()
-        self.iterations = self.iterationsSpin.value()
-        self.displayPlts = self.plotsCheck.isChecked()
-        self.displayLog = self.logCheck.isChecked()
-
-        if(self.allValid()):
-            self.disableAll()
-            self.progress.setDisabled(False)
-            self.logProgress.setDisabled(False)
-            self.resultTabs.setTabEnabled(1, True)
-            self.resultTabs.setTabEnabled(2, True)
-
-            if(self.displayLog):
-                #Autoatically switch to the activity log frame if "Display Log" is checked
-                self.logView()
-
-            if(self.type == 0):
-                self.segmentPath = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations)
-                if self.segmentPath == None:
-                    #In case something (probably discretizing) goes wrong
-                    self.resetAll()
-                    self.frameStack.setCurrentWidget(self.mainFrame)
-                    return
-
-            if(self.type == 1):
-                self.showMessage('Error', 'Not yet implemented', 'message')
-                self.resetAll()
-                self.enableAll()
-                self.frameStack.setCurrentWidget(self.mainFrame)
-                return
-
-            #Nothing went wrong, continue segmentation
-            self.isReset = False
-            self.noResults.hide()
-            self.addImageStructure()
-            self.openSegmentDir.setDisabled(False)
-
-        return
-
-#------------------------------HELPER FUNCTIONS------------------------------
-
     def resetAll(self):
 
         #Resets everything in the gui to its initial state
@@ -553,13 +431,13 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.discretize = False
         self.displayPlts = True
         self.displayLog = True
-        self.displaySegments = True
+        self.displayRawData = False
 
         self.divideTypeCombo.setCurrentIndex(0)
         self.maxPixelDistSpin.setValue(2)
         self.iterationsSpin.setValue(1)
         self.plotsCheck.setChecked(True)
-        self.segmentsCheck.setChecked(True)
+        self.rawDataCheck.setChecked(False)
         self.logCheck.setChecked(True)
         self.smoothCheck.setChecked(False)
         self.discretizeCheck.setChecked(False)
@@ -595,10 +473,136 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.noResults.show()
         self.resultTabs.setTabEnabled(1, False)
         self.resultTabs.setTabEnabled(2, False)
+        self.resultTabs.setTabEnabled(3, False)
 
         self.isReset = True
         return
 
+
+    def toggleSmoothing(self):
+
+        if(self.smoothCheck.isChecked()):
+            self.smoothingIterationsSpin.setDisabled(False)
+            self.smoothingIterationsPrompt.setDisabled(False)
+        else:
+            self.smoothingIterationsSpin.setDisabled(True)
+            self.smoothingIterationsPrompt.setDisabled(True)
+        return
+
+
+    def openImage(self):
+
+        if(self.isReset == False):
+            answer = self.showMessage('Error', 'Window must be reset before segmenting again.\nReset Now?', 'question')
+            if answer == 0:
+                self.resetAll()
+                time.sleep(1)
+                self.openImage()
+            return
+
+        #open the image from file to be segmented
+        if(self.type == 0):
+            temp = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
+
+            if(temp != ''):
+                #This statement prevents a bug where the user hits 'cancel' on the file open window
+                #after already having opened one previously
+                self.imagePath = temp
+                self.filename = os.path.split(self.imagePath)[-1]
+                self.fileLabel.setText('Filename: \n{}'.format(self.filename))
+                self.fileLabel.setFont(self.emphasis1)
+        else:
+            temp = qt.QFileDialog.getOpenFileNames(self, 'Open Images')
+
+            if(temp != ''):
+                imagePaths= temp
+
+            for imagePath in imagePaths:
+                self.filenames.append(os.path.split(str(imagePath))[-1])
+            for file in self.filenames:
+                self.fileList.addItem(file)
+
+            self.imagePath = imagePaths[0]
+            self.fileLabel.setFont(self.emphasis1)
+        return
+
+
+    def blowupImage(self, cut):
+        def blowUp():
+            image = Image.open(cut)
+            image.show()
+        return blowUp
+
+
+    def openSegmentDirectory(self):
+        if platform.system() == "Windows":
+            os.startfile(self.segmentPath)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", self.segmentPath])
+        else:
+            subprocess.Popen(["xdg-open", self.segmentPath])
+
+
+    def runSegmentation(self):
+
+        #Runs the segmentation by calling segment_test and passing the neccessary parameters, only
+        # after the gui is checked to be in a valid state that won't cause errors
+        self.discretize = self.discretizeCheck.isChecked()
+        self.divideType = int(self.divideTypeCombo.currentText())
+        self.maxPixelDist = self.maxPixelDistSpin.value()
+        self.smoothingIterations = self.smoothingIterationsSpin.value()
+        self.iterations = self.iterationsSpin.value()
+        self.displayPlts = self.plotsCheck.isChecked()
+        self.displayLog = self.logCheck.isChecked()
+        self.displayRawData = self.rawDataCheck.isChecked()
+
+        if(self.allValid()):
+            self.disableAll()
+            self.progress.setDisabled(False)
+            self.logProgress.setDisabled(False)
+
+            if(self.displayLog):
+                #Autoatically switch to the activity log frame if "Display Log" is checked
+                self.logView()
+
+            if(self.type == 0):
+                segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations)
+                if self.segmentPath == None:
+                    #In case something (probably discretizing) goes wrong
+                    self.resetAll()
+                    self.frameStack.setCurrentWidget(self.mainFrame)
+                    return
+
+            if(self.type == 1):
+                self.showMessage('Error', 'Not yet implemented', 'message')
+                self.resetAll()
+                self.enableAll()
+                self.frameStack.setCurrentWidget(self.mainFrame)
+                return
+
+            if self.displayPlts:
+                self.resultTabs.setTabEnabled(1, True)
+                self.resultTabs.setTabEnabled(2, True)
+            else:
+                self.resultTabs.setTabEnabled(1, False)
+                self.resultTabs.setTabEnabled(2, False)
+
+
+            if self.displayRawData:
+                self.rawDataDisplay.setPlainText(str(self.rawData))
+                self.resultTabs.setTabEnabled(3, True)
+            else:
+                self.resultTabs.setTabEnabled(3, False)
+
+            #Nothing went wrong, display results
+            self.isReset = False
+            self.noResults.hide()
+            self.addImageStructure()
+            self.openSegmentDir.setDisabled(False)
+
+        return
+
+#------------------------------HELPER FUNCTIONS------------------------------
 
     def disableAll(self):
 
@@ -613,10 +617,13 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.maxPixelDistSpin.setDisabled(True)
         self.iterationsSpin.setDisabled(True)
         self.plotsCheck.setDisabled(True)
-        self.segmentsCheck.setDisabled(True)
+        self.rawDataCheck.setDisabled(True)
         self.divideTypeCombo.setDisabled(True)
         self.logCheck.setDisabled(True)
         self.toolBar.setDisabled(True)
+        self.reset.setDisabled(True)
+        self.resultsReset.setDisabled(True)
+        self.logReset.setDisabled(True)
         return
 
 
@@ -634,9 +641,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.maxPixelDistSpin.setDisabled(False)
         self.iterationsSpin.setDisabled(False)
         self.plotsCheck.setDisabled(False)
-        self.segmentsCheck.setDisabled(False)
+        self.rawDataCheck.setDisabled(False)
         self.divideTypeCombo.setDisabled(False)
         self.toolBar.setDisabled(False)
+        self.reset.setDisabled(False)
+        self.resultsReset.setDisabled(False)
+        self.logReset.setDisabled(False)
         return
 
 
@@ -798,6 +808,16 @@ class XSDImageSegmentation(qt.QMainWindow):
     def returnDiscretized(self, discretizedPath):
         #Sets the "original image" as the newly created discretized image, if checked
         self.imagePath = discretizedPath
+
+
+    def setSegmentPath(self, path):
+        self.segmentPath = path
+        return
+
+
+    def setRawData(self, data):
+        self.rawData = data
+        return
 
 
     def closeApplication(self):

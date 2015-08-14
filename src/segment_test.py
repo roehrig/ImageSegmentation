@@ -505,7 +505,8 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         gui.advanceProgressBar(100)
         gui.updateLog('--- Segmentation completed. Click the results icon in the toolbar to view segments and plots. ---')
 
-        return segmentDir                                                                              #added return statement
+        gui.setSegmentPath(segmentDir)
+        gui.setRawData(list(imageData))
 
     else:
         #If gui recieves None instead of segmentDir, it knows the segmentation was aborted
