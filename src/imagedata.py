@@ -80,6 +80,7 @@ class ImageFileData(ImageData):
         self.height = self.dataImage.size[1]
         self.data = self.dataImage.getdata()   #Intensity values per pixel; will return a tuple if image is multi-layer
         self.size = len(self.data)
+        self.channels = self.dataImage.getbands()
         self.fileFormat = self.dataImage.format
         self.imageMode = self.dataImage.mode
         self.iteration = 1
@@ -113,6 +114,15 @@ class ImageFileData(ImageData):
         :param minVal: the low value to use for pixels
         :return:
         '''
+        gui = shareGui.getGui()
+
+        if len(self.channels) > 1:
+            answer = gui.showMessage('Error', 'Discretization can only be preformed on grayscale images.\nThe current image has the following bands: '
+                                     '\n{}\nPress \'Ok\' to continue segmentation without discretizing, or \'Cancel\' to abort.'.format(self.channels), 'warning')
+            if answer == 0:
+                return True
+            if answer == 1:
+                return False
 
         shareGui.getGui().updateLog('Discretizing image')
 
@@ -139,11 +149,12 @@ class ImageFileData(ImageData):
                     temp[stride] = minVal
                     pixel_values[stride] = minVal
 
-        newFile= '{}{}_descritized.{}'.format(self.segmentDir, self.imageFile.split('.')[0], self.fileFormat)
+        newFile= '{}{}_discretized.{}'.format(self.segmentDir, self.imageFile.split('.')[0], self.fileFormat)
         self.WriteNewImage(temp, newFile)
-        shareGui.getGui().returnDescritized(newFile)
+        gui.returnDiscretized(newFile)
         self.__init__(newFile)
         self.ReadImage()
+        return True
 
 
     def SmoothImage(self, iterations):

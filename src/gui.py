@@ -438,8 +438,6 @@ class XSDImageSegmentation(qt.QMainWindow):
                 #This statement prevents a bug where the user hits 'cancel' on the file open window
                 #after already having opened one previously
                 self.imagePath = temp
-
-            if(len(self.imagePath) != 0):
                 self.filename = os.path.split(self.imagePath)[-1]
                 self.fileLabel.setText('Filename: \n{}'.format(self.filename))
                 self.fileLabel.setFont(self.emphasis1)
@@ -479,19 +477,28 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.resultTabs.setTabEnabled(2, True)
 
             if(self.displayLog):
-                #Autoatically witch to the activity log frame if "Display Log" is checked
+                #Autoatically switch to the activity log frame if "Display Log" is checked
                 self.logView()
 
             if(self.type == 0):
                 self.segmentPath = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations)
-                self.isReset = False
+                if self.segmentPath == None:
+                    #In case something (probably discretizing) goes wrong
+                    self.resetAll()
+                    self.frameStack.setCurrentWidget(self.mainFrame)
+                    return
 
             if(self.type == 1):
-                qt.QMessageBox.warning(self, 'Error', 'Not yet implemented', 'Ok')
+                self.showMessage('Error', 'Not yet implemented', 'message')
+                self.resetAll()
                 self.enableAll()
+                self.frameStack.setCurrentWidget(self.mainFrame)
+                return
 
-            self.addImageStructure()
+            #Nothing went wrong, continue segmentation
+            self.isReset = False
             self.noResults.hide()
+            self.addImageStructure()
 
         return
 
@@ -601,15 +608,15 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #Check for any potential errors before segmenting
         if(self.isReset == False):
-            qt.QMessageBox.information(self, 'Error', 'Window must be reset before segmenting again', 'Ok')
+            self.showMessage('Error', 'Window must be reset before segmenting again', 'message')
             return  False
 
         if(self.imagePath == None):
-            qt.QMessageBox.information(self, 'Error', 'No image selected', 'Ok')
+            self.showMessage('Error', 'No image selected', 'message')
             return  False
 
         if(self.smoothCheck.isChecked() and self.smoothingIterations == 0):
-            qt.QMessageBox.information(self, 'Error', 'Number of smoothing iterations cannot be zero.', 'Ok')
+            self.showMessage('Error', 'Number of smoothing iterations cannot be zero.', 'message')
             return False
 
         else:
@@ -633,6 +640,19 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
+    def showMessage(self, title, string, type):
+
+        #Message strings can be passed to this function from any module as to prevent having to import PyQt everywhere to display messages.
+        #'warning's return an answer to a prompt (either 'Ok' or 'Cancel') while message simply displays the given string
+
+        if(type == 'warning'):
+            answer = qt.QMessageBox.warning(self, title, string, 'Ok', 'Cancel')
+            return answer
+        if(type == 'message'):
+            qt.QMessageBox.information(self, title, string, 'Ok')
+            return
+
+
     def copyLogContents(self):
         #Copy contents of activity log to clipboard
         self.log.copy()
@@ -641,7 +661,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def openResultsFromFile(self):
         #Open the results of an old segmentation to view in the Results frame
-        qt.QMessageBox.warning(self, 'Error', 'Not yet implemented', 'Ok')
+        self.showMessage('Error', 'Not yet implemented', 'message')
         return
 
 
@@ -698,11 +718,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         for dir in dirs:
             i += 1
             j = 0
-            if dir.find('cut_') != -1:
+            dir = '/{}'.format(dir)
+            if dir.find('/cut_') != -1:
                 #'cuts' gets list of all images in the current "cut_n" directory
                 cuts = next(os.walk('{}{}'.format(self.segmentPath, dir)))[2]
                 for n in range(len(cuts)):
-                    cuts[n] = self.segmentPath + ('cut_%d/' % c) + cuts[n]
+                    cuts[n] = self.segmentPath + ('/cut_%d/' % c) + cuts[n]
                 cutLabel = qt.QLabel('\nCut %d' % c, self.segmentsFrame)
                 cutLabel.setFont(self.emphasis1)
                 self.segmentsLayout.addWidget(cutLabel, i, 0)
@@ -735,9 +756,10 @@ class XSDImageSegmentation(qt.QMainWindow):
                 i += 1
         return(i)
 
-    def returnDescritized(self, descritizedPath):
-        #Sets the "original image" as the newly created descritized image, if checked
-        self.imagePath = descritizedPath
+
+    def returnDiscretized(self, discretizedPath):
+        #Sets the "original image" as the newly created discretized image, if checked
+        self.imagePath = discretizedPath
 
 
     def closeApplication(self):

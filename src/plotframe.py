@@ -1,6 +1,5 @@
 __author__ = 'roehrig'
 
-
 import matplotlib.pyplot as plt
 import numpy
 import math

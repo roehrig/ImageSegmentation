@@ -1,9 +1,6 @@
 __author__ = 'roehrig'
 
-import numpy
-import sys
 import os
-from PIL import Image
 from pixel import *
 from imagedata import ImageFileData
 from matrices import DiagonalMatrix as DM
@@ -13,7 +10,6 @@ from plotframe import ScatterPlot
 from plotframe import HistogramPlot
 import time
 import shareGui
-from PyQt4 import QtGui as qt
 
 
 def CalculateIntensitySigma(pixelList):
@@ -430,24 +426,28 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
 def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, iterations):
 
-    #divideType = Set the type of dividing to be done.
-        # 0 - divide the image using the value of zero
-        # 1 - divide the image using the median value of the eignevector
-        # 2 - try vector.size / (log(vector.size))^2 evenly spaced dividing points
-    #maxPixelDistance = how close 2 pixels must be to have a nonzero weight between them
-    #discretize = boolean whether or not to discretize
-    #smoothValue = iterations of smoothing (smoothing not called if smoothValue = 0)
-    #displayPlots = self explanatory boolean
-    #iterations = number of times to run the algorithm
-
+    '''
+    :param divideType = Set the type of dividing to be done.
+        0 - divide the image using the value of zero
+        1 - divide the image using the median value of the eignevector
+        2 - try vector.size / (log(vector.size))^2 evenly spaced dividing points
+    :param maxPixelDistance = how close 2 pixels must be to have a nonzero weight between them
+    :param discretize = boolean whether or not to discretize
+    :param smoothValue = iterations of smoothing (smoothing not called if smoothValue = 0)
+    :param displayPlots = self explanatory boolean
+    :param iterations = number of times to run the algorithm
+    :return segmentDir or None
+    '''
 
     gui = shareGui.getGui()
+    allValid = True
     imageDir, imageFile = os.path.split(imagePath)
-    segmentDir = '{}/{}_segmentation/{}/'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile)     #creates a directory titled as the current date to save all output
+    segmentDir = '{}/{}_segmentation/{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile)     #creates two directories titled as the current date > the original image name, to save all output
+    dateDir = os.path.split(segmentDir)[0]
     suffix = 1
 
     while(os.path.isdir(segmentDir) == True):                                                        #This while loop ensures no segmentations of a common image are overwritten
-        segmentDir = '{}/{}_segmentation/{}_{}/'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile, suffix)
+        segmentDir = '{}/{}_segmentation/{}_{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile, suffix)
         suffix += 1
 
     #Creates the segmentation directory
@@ -459,51 +459,65 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
                 raise
 
     data = ImageFileData(imagePath, segmentDir)
-    # Read in the image and initialize information (size, mode, etc.)
-    data.ReadImage()
-
     gui.updateLog('--- Reading Image ---\n')
+    data.ReadImage()
 
     if smoothValue > 0:
         data.SmoothImage(smoothValue)
-        gui.advanceProgressBar(5)
     if discretize == True:
-        #Descritizes the image, using 255 (white) as the maximum value
-        data.DiscretizeImage(255, 0)
+        #Discretizes the image, using 255 (white) as the maximum value
+        #If the image is not grayscale and cannot be discretized, the user can either continue (allValid = True), or abort (allValid = false)
+        allValid = data.DiscretizeImage(255, 0)
+
+    if allValid:
         gui.advanceProgressBar(10)
+        imageData = data.GetImageData()
+        imageSize = data.GetImageSize()
+        dimensions = data.GetImageDimensions()
+        channels = data.GetChannels()
+        fileFormat = data.GetFileFormat()
+        # Create an array of pixel locations, location=sqrt(x^2 + y^2)
+        locationValues = data.pixels.CreateLocationArray()
+        sigmaI = numpy.var(imageData)
+        sigmaX = numpy.var(locationValues)
 
-    imageData = data.GetImageData()
-    imageSize = data.GetImageSize()
-    dimensions = data.GetImageDimensions()
-    channels = data.GetChannels()
-    fileFormat = data.GetFileFormat()
-    # Create an array of pixel locations, location=sqrt(x^2 + y^2)
-    locationValues = data.pixels.CreateLocationArray()
-    sigmaI = numpy.var(imageData)
-    sigmaX = numpy.var(locationValues)
-
-    gui.updateLog("Image mode is %s" % data.GetImageMode())
-    gui.updateLog("Image format is %s" % fileFormat)
-    gui.updateLog("Number of image pixels = %d" % imageSize)
-    gui.updateLog("Image width = %d, image height = %d" % dimensions)
-    gui.updateLog("Intensity variance = %f" % sigmaI)
-    gui.updateLog("Location variance = %f" % sigmaX)
-    gui.advanceProgressBar(20)                                                                      #All of these lines change the graphic of the gui's progress bar
+        gui.updateLog("Image mode is %s" % data.GetImageMode())
+        gui.updateLog("Image format is %s" % fileFormat)
+        gui.updateLog("Number of image pixels = %d" % imageSize)
+        gui.updateLog("Image width = %d, image height = %d" % dimensions)
+        gui.updateLog("Intensity variance = %f" % sigmaI)
+        gui.updateLog("Location variance = %f" % sigmaX)
+        gui.advanceProgressBar(20)                                                                      #All of these lines change the graphic of the gui's progress bar
 
 
-    gui.updateLog("\n--- Creating weight matrix ---\n")
-    weightMatrix = WM(data.size, data.size)
-    weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
+        gui.updateLog("\n--- Creating weight matrix ---\n")
+        weightMatrix = WM(data.size, data.size)
+        weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
 
-    t0 = time.time()
-    weightMatrix.CreateMatrix(sigmaI, sigmaX)
-    t2 = time.time() - t0
-    gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
-    gui.advanceProgressBar(50)
+        t0 = time.time()
+        weightMatrix.CreateMatrix(sigmaI, sigmaX)
+        t2 = time.time() - t0
+        gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
+        gui.advanceProgressBar(50)
 
-    gui.updateLog('\n--- Starting segmentation ---\n')
-    SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations) #now passes fileformat, displayPlots, and the desired number of iterations
-    gui.advanceProgressBar(100)
-    gui.updateLog('--- Segmentation completed. Click the results icon in the toolbar to view segments and plots. ---')
+        gui.updateLog('\n--- Starting segmentation ---\n')
+        SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations) #now passes fileformat, displayPlots, and the desired number of iterations
+        gui.advanceProgressBar(100)
+        gui.updateLog('--- Segmentation completed. Click the results icon in the toolbar to view segments and plots. ---')
 
-    return segmentDir                                                                              #added return statement
+        return segmentDir                                                                              #added return statement
+
+    else:
+        #If gui recieves None instead of segmentDir, it knows the segmentation was aborted
+        #In that case, epmty segmentation directory created above is deleted.
+        #If the current image segentation directory is the only directory in the date folder (current_date_segmentation/image.ext_dir)
+        # it deletes the entire directory, otherwise just deletes the current image segmentation direcctory
+
+        os.rmdir(segmentDir)
+        try:
+            os.rmdir(dateDir)
+        except OSError:
+            #meaning there are other image segmentations saved in the date directoy
+            pass
+
+        return None

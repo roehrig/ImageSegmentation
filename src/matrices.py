@@ -1,7 +1,6 @@
 __author__ = 'roehrig'
 
 import numpy
-import pixel
 import math
 import multiprocessing as mp
 import shareGui
