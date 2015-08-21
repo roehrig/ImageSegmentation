@@ -4,6 +4,7 @@ import numpy
 import math
 import multiprocessing as mp
 import shareGui
+import ipdb
 
 
 def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
@@ -213,7 +214,11 @@ class WeightMatrix(Matrix):
 
         # Calculate cut size
         sum2 = numpy.sum(temp, dtype=numpy.float64)
-        cutsize = (edgeSum / sum1) + (edgeSum / sum2)
+        try:
+            cutsize = (edgeSum / sum1) + (edgeSum / sum2)
+        except ValueError:
+            print('Error on reducing matrix')
+
 
 #        return (edgeSum, posMatrix, negMatrix)
         return (cutsize, posMatrix, negMatrix)

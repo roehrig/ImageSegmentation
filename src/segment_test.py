@@ -10,6 +10,7 @@ from plotframe import ScatterPlot
 from plotframe import HistogramPlot
 import time
 import shareGui
+import ipdb
 
 
 def CalculateIntensitySigma(pixelList):
@@ -41,13 +42,11 @@ def CalculateLocationSigma(pixels):
     pixelArray = pixels.GetPixelArray()
 
     for pixel in pixelArray:
-
         mu = mu + pixel.GetLocation()
 
     mu = mu / numPixels
 
     for pixel in pixelArray:
-
         sum_squares = sum_squares + pow(pixel.GetLocation() - mu, 2)
 
     sigma = sum_squares / numPixels
@@ -63,7 +62,6 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
     posIndices = []
     negIndices = []
 
-#    print "Segmenting image"
     numPos = 0
     numNeg = 0
     for i in range(datasize):
@@ -76,12 +74,21 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
             segmentTwo[locations[i]] = imageData[i]
             negIndices.append(i)
 
-#    print "Number of pixels in segment one = %d" % numPos
-#    print "Number of pixels in segment two = %d" % numNeg
 
     segmentInfo = {'segOne':segmentOne, 'segTwo':segmentTwo, 'posIndices':posIndices, 'negIndices':negIndices}
 
     return segmentInfo
+
+
+def solveEigenVectors(diag, weight):
+
+    finalMatrix = numpy.subtract(diag, weight)
+    eigenValues, eigenVectors = LA.eig(finalMatrix)
+    indices = eigenValues.argsort()
+    secondVal = eigenValues[indices[1]]
+    secondVec = eigenVectors[:, indices[1]]
+
+    return (secondVec)
 
 
 def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, iterations): #now takes fileformat, displayPlots, and iterations
@@ -92,14 +99,16 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     diagonalMatrix = DM(data.width, data.height)
     diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
 
-    gui.updateLog("Calculating D-W")
-    finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
+    # gui.updateLog("Calculating D-W")
+    # finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
+    #
+    # gui.updateLog("Solving for eigenvalues")
+    # eigenValues, eigenVectors = LA.eig(finalMatrix)
+    # indices = eigenValues.argsort()
+    # secondVal = eigenValues[indices[1]]
+    # secondVec = eigenVectors[:, indices[1]]
 
-    gui.updateLog("Solving for eigenvalues")
-    eigenValues, eigenVectors = LA.eig(finalMatrix)
-    indices = eigenValues.argsort()
-    secondVal = eigenValues[indices[1]]
-    secondVec = eigenVectors[:, indices[1]]
+    secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
 
     # Divide the image into two using the second smallest eigenvector.
     if divideType == 0:
@@ -192,7 +201,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             os.makedirs(pixel_path)
         except OSError:
             if not os.path.isdir(image_path):
-               raise
+                raise
             if not os.path.isdir(matrix_path):
                 raise
             if not os.path.isdir(pixel_path):
@@ -201,26 +210,28 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     filename = "/segment_1_"
     gui.updateLog("Writing image file {}_1.{}".format(filename, fileFormat))
     data.WriteNewImage(segmentOne, '{}{}1.{}'.format(image_path,filename,fileFormat))     #this will now write to whatever the file format of the original is instead of just tif
-    gui.updateLog("Writing image file {}_2.{}\n".format(filename, fileFormat))
-    data.WriteNewImage(segmentTwo, '{}{}2.{}'.format(image_path,filename,fileFormat))
     posArrays = {'pixels':posPixels, 'locations':posLocations}
     numpy.savez(pixel_path + filename + "1.npz", **posArrays)
+    numpy.save(matrix_path + filename + "1.npy", matrixOne.GetMatrix())
+
+    gui.updateLog("Writing image file {}_2.{}\n".format(filename, fileFormat))
+    data.WriteNewImage(segmentTwo, '{}{}2.{}'.format(image_path,filename,fileFormat))
     negArrays = {'pixels':negPixels, 'locations':negLocations}
     numpy.savez(pixel_path + filename + "2.npz", **negArrays)
-    numpy.save(matrix_path + filename + "1.npy", matrixOne.GetMatrix())
     numpy.save(matrix_path + filename + "2.npy", matrixTwo.GetMatrix())
 
-    scatterPlotter = ScatterPlot("Original Image", secondVec)
-    histogramPlotter = HistogramPlot("Original image", secondVec)
+
+    if(displayPlots):
+        scatterPlotter = ScatterPlot("Original Image", secondVec)
+        histogramPlotter = HistogramPlot("Original image", secondVec)
 
     gui.advanceProgressBar(60)
 
     while cutNumber < iterations:                                                       #The algorithm will now run for as many times as desired, with the variable 'iterations'
                                                                                         # given by the user in the gui
-
         gui.advanceProgressBar(40/iterations)
         imageNumber = 1
-        cutNumber = cutNumber + 1
+        cutNumber += 1
 
         image_path = image_dir + "/cut_" + str(cutNumber)
         pixel_path = image_dir + "/pixels_" + str(cutNumber)
@@ -245,6 +256,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
         # Iterate through the image files and weight matrix files
         for image in os.listdir(prev_image_path):
+
             # Get the name of the file without the file extension.
             filename = os.path.splitext(image)[0]
 
@@ -258,28 +270,34 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             # Load the image pixels and pixel locations into arrays
             newPixelsArrays = numpy.load(prev_pixel_path + "/" + filename + ".npz")
             newPixels = newPixelsArrays['pixels']
-            gui.updateLog("Reading array of size %d from file %s.npz" % (newPixels.shape[0], filename))
             newLocations = newPixelsArrays['locations']
+            gui.updateLog("Reading array of size %d from file %s.npz" % (newPixels.shape[0], filename))
 
             # Load the matrix data and create a new WeightMatrix
             temp = numpy.matrix(numpy.load(prev_matrix_path + "/" + filename + ".npy"))
-            gui.updateLog("Reading matrix of size %dx%d from file %s.npy" % (temp.shape[0], temp.shape[1], filename))
             newWeightMatrix = WM(temp.shape[0], temp.shape[1])
             newWeightMatrix.SetMatrix(temp)
+            gui.updateLog("Reading matrix of size %dx%d from file %s.npy" % (temp.shape[0], temp.shape[1], filename))
+
 
             # Create a new diagonal matrix.
 #            print "Creating diagonal matrix"
             diagonalMatrix = DM(newPixels.size, 1)
             diagonalMatrix.CreateMatrix(newWeightMatrix.GetMatrix())
 
-#            print "Calculating D-W"
-            finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
 
-#            print "Solving for eigenvalues"
-            eigenValues, eigenVectors = LA.eig(finalMatrix)
-            indices = eigenValues.argsort()
-            secondVal = eigenValues[indices[1]]
-            secondVec = eigenVectors[:, indices[1]]
+# #            print "Calculating D-W"
+#             finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
+#
+#
+# #            print "Solving for eigenvalues"
+#             eigenValues, eigenVectors = LA.eig(finalMatrix)
+#             indices = eigenValues.argsort()
+#             secondVal = eigenValues[indices[1]]
+#             secondVec = eigenVectors[:, indices[1]]
+
+            secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
+
 
             # Divide the image into two using the second smallest eigenvector.
             if divideType == 0:
@@ -302,6 +320,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                     stepSize = (maxVal - minVal) / numSteps
                     dividingValue = maxVal
 
+
             imageData = data.GetImageData()
             segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue)
             segmentOne = segmentInfo['segOne']
@@ -311,8 +330,9 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
             # Calculate the weights of the edges that were removed from the image.
             # Reduce the weight matrix to two new matrices, one for each image segment.
-            cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
+            cutSize, matrixOne, matrixTwo = newWeightMatrix.ReduceMatrix(posIndices, negIndices)
             gui.updateLog("Size of cut = %f" % cutSize)
+
 
             if divideType == 2:
                 prevCutSize = cutSize
@@ -329,7 +349,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                     # Calculate the weights of the edges that were removed from the image.
                     # Reduce the weight matrix to two new matrices, one for each image segment.
 #                    edgeSum, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
-                    cutSize, matrixOne, matrixTwo = weightMatrix.ReduceMatrix(posIndices, negIndices)
+                    cutSize, matrixOne, matrixTwo = newWeightMatrix.ReduceMatrix(posIndices, negIndices)
 #                    print "Size of cut = %f" % cutSize
                     if cutSize < prevCutSize:
                         prevCutSize = cutSize
@@ -361,17 +381,17 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             posLocations = numpy.take(newLocations, posIndices)
             negLocations = numpy.take(newLocations, negIndices)
 
-            scatterPlotter.AddPlot(image, secondVec)
-            histogramPlotter.AddPlot(image, secondVec)                                          #histogram plots are now created on every iteration, and displayed in the gui results
+            if(displayPlots):
+                scatterPlotter.AddPlot(image, secondVec)
+                histogramPlotter.AddPlot(image, secondVec)                                     #histogram plots are now created on every iteration, and displayed in the gui results
 
             filename = "/segment_%d_%d" % (cutNumber, imageNumber)
             gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
-            data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat))  #this will now write to whatever the file format of the original is instead of just tif
+            data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat)) #this will now write to whatever the file format of the original is instead of just tif
             posArrays = {'pixels':posPixels, 'locations':posLocations}
             numpy.savez(pixel_path + "/%s.npz" % filename, **posArrays)
             numpy.save(matrix_path + "/%s.npy" % filename, matrixOne.GetMatrix())
-
-            imageNumber = imageNumber + 1
+            imageNumber += 1
 
             filename = "/segment_%d_%d" % (cutNumber, imageNumber)
             gui.updateLog("Writing image file {}.{}\n".format(filename, fileFormat))
@@ -379,7 +399,9 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             negArrays = {'pixels':negPixels, 'locations':negLocations}
             numpy.savez(pixel_path + "/%s.npz" % filename, **negArrays)
             numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
-            imageNumber = imageNumber + 1
+
+            imageNumber += 1
+
 
     if(displayPlots):                                                                          #Added this if statment to handle adding the scatter and histogram plots to the gui's
         scatterPlotter.displayPlots()                                                          #results frame
@@ -410,14 +432,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 #                 if(answer == 1): return False
 #
 #     try:
-#         for i in range(len(allData)):
-#             for j in range(len(allData[i])):
-#                 mergedData[j][i] = allData[i][j]
-#
-#         mergedImage = Image.new(self.imageMode, mergedData.size)
-#         mergedImage.putdata(mergedData)
-#         mergedImage.save(finalName, finalFormat)
-#         return True
+#         try to merge the given images here using numpy.dstack()?
 #
 #     except:
 #         qt.QMessageBox('Image merge failed.')
@@ -499,6 +514,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         t2 = time.time() - t0
         gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
         gui.advanceProgressBar(50)
+
 
         gui.updateLog('\n--- Starting segmentation ---\n')
         SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations) #now passes fileformat, displayPlots, and the desired number of iterations

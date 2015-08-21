@@ -780,7 +780,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         width = 150
         height = 150
         #maxColumn is how far over the images will line to the right before starting a "new line" of images
-        maxColumn = 2
+        maxColumn = 3
 
         for cut in cuts:
             imageFrame = qt.QFrame(self.segmentsFrame)
