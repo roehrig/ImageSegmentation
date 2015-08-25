@@ -40,10 +40,10 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.maxPixelDist = 0
         self.smoothingIterations = 0
         self.discretize = False
-        self.displayPlts = True
         self.displayLog = True
-        self.iterations = 0
+        self.displayPlts = False
         self.displayRawData = False
+        self.iterations = 0
         self.rawData = None
 
         self.frames()
@@ -215,8 +215,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.iterationsSpin.setMinimum(1)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
-        self.plotsCheck.setChecked(True)
         self.logCheck.setChecked(True)
+        self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
 
         #Packing components
@@ -233,9 +233,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.smoothCheck, 4, 0)
         paramsLayout.addWidget(self.smoothingIterationsPrompt, 3, 1)
         paramsLayout.addWidget(self.smoothingIterationsSpin, 4, 1)
-        outputLayout.addWidget(self.plotsCheck, 0,0)
-        outputLayout.addWidget(self.rawDataCheck, 0, 1)
-        outputLayout.addWidget(self.logCheck, 1, 0)
+        outputLayout.addWidget(self.logCheck, 0, 0)
+        outputLayout.addWidget(self.plotsCheck, 1,0)
+        outputLayout.addWidget(self.rawDataCheck, 2, 0)
         leftLayout.addWidget(paramsBox)
         leftLayout.addWidget(outputBox)
         centerLayout.addWidget(filesBox)
@@ -429,16 +429,16 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.filenames = []
         self.smoothingIterations = 0
         self.discretize = False
-        self.displayPlts = True
         self.displayLog = True
+        self.displayPlts = False
         self.displayRawData = False
 
         self.divideTypeCombo.setCurrentIndex(0)
         self.maxPixelDistSpin.setValue(2)
         self.iterationsSpin.setValue(1)
-        self.plotsCheck.setChecked(True)
-        self.rawDataCheck.setChecked(False)
         self.logCheck.setChecked(True)
+        self.plotsCheck.setChecked(False)
+        self.rawDataCheck.setChecked(False)
         self.smoothCheck.setChecked(False)
         self.discretizeCheck.setChecked(False)
         self.smoothingIterationsSpin.setValue(0)
@@ -537,10 +537,11 @@ class XSDImageSegmentation(qt.QMainWindow):
     def openSegmentDirectory(self):
         if platform.system() == "Windows":
             os.startfile(self.segmentPath)
-        elif platform.system() == "Darwin":
-            subprocess.Popen(["open", self.segmentPath])
+        elif platform.system() == "Linux":
+            subprocess.Popen(['xdg-open', self.segmentPath])
         else:
-            subprocess.Popen(["xdg-open", self.segmentPath])
+            #OSX
+            os.system(['open "%s"' % self.segmentPath])
 
 
     def runSegmentation(self):
@@ -740,7 +741,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def addImageStructure(self):
-        #Creates and organizes a structure for all segmented images written in imagedata.py to be added to the results
+        #Creates and organizes a structure (grid) for all segmented images written in imagedata.py to be added to the results
         #page under the 'Segmentation' tab
 
         cuts = []
@@ -750,10 +751,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         originalLabel = qt.QLabel('Original Image', self.segmentsFrame)
         originalLabel.setFont(self.emphasis1)
         self.segmentsLayout.addWidget(originalLabel, 0, 0)
+        #self.imagePath is the path to the original image
         cuts.append(self.imagePath)
         self.addImages(cuts, i, j, '>> Open image file')
         #'dirs' gets the list of directories created during segmentation (to get all "cut_n"'s)
         dirs = next(os.walk(self.segmentPath))[1]
+        dirs.sort()
 
         for dir in dirs:
             i += 1
@@ -762,6 +765,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             if dir.find('/cut_') != -1:
                 #'cuts' gets list of all images in the current "cut_n" directory
                 cuts = next(os.walk('{}{}'.format(self.segmentPath, dir)))[2]
+                cuts.sort()
                 for n in range(len(cuts)):
                     cuts[n] = self.segmentPath + ('/cut_%d/' % c) + cuts[n]
                 cutLabel = qt.QLabel('\nCut %d' % c, self.segmentsFrame)

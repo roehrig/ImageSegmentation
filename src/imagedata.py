@@ -20,6 +20,7 @@ class ImageData():
         self.imageMode = None
         self.size = width * height
         self.fileFormat = None
+        self.channels = None
 
         return
 
@@ -42,10 +43,8 @@ class ImageData():
         return self.imageMode
 
     def GetChannels(self):
-        try:
-            return len(self.data[0])    #This now simply returns the length of the first pixels vector value
-        except TypeError:
-            return(1)                   #if len(0) fails, first pixel must be a scalar (single-layer image)
+
+        return self.channels
 
     def GetFileFormat(self):
         return self.fileFormat

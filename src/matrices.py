@@ -156,9 +156,9 @@ class WeightMatrix(Matrix):
 
         gui = shareGui.getGui()
         cpus = mp.cpu_count()
-        poolCount = cpus
+        poolCount = int(cpus - (math.ceil(cpus*0.1)))
         args = [(self, sigmaI, sigmaX, i,) for i in range(self.numPixels)]
-        gui.updateLog('Number of cpu\'s to process WM:%d'%cpus)
+        gui.updateLog('Number of cpu\'s to process weight matrix: %d'%cpus)
 
         pool = mp.Pool(processes = poolCount)
         gui.updateLog('Mapping pool processes')
@@ -216,7 +216,7 @@ class WeightMatrix(Matrix):
         sum2 = numpy.sum(temp, dtype=numpy.float64)
         try:
             cutsize = (edgeSum / sum1) + (edgeSum / sum2)
-        except ValueError:
+        except:
             print('Error on reducing matrix')
 
 

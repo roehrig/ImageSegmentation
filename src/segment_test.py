@@ -57,8 +57,8 @@ def CalculateLocationSigma(pixels):
 
 def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingValue):
 
-    segmentOne = numpy.zeros(imageSize, dtype=tuple)            #instead of creating an array of ints, this now creates an array of tuples
-    segmentTwo = numpy.zeros(imageSize, dtype=tuple)            #with its each tuples length corresonding to the # of channels in the image
+    segmentOne = numpy.zeros(imageSize, dtype = tuple)
+    segmentTwo = numpy.zeros(imageSize, dtype = tuple)
     posIndices = []
     negIndices = []
 
@@ -98,15 +98,6 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     gui.updateLog("Creating diagonal matrix")
     diagonalMatrix = DM(data.width, data.height)
     diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
-
-    # gui.updateLog("Calculating D-W")
-    # finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
-    #
-    # gui.updateLog("Solving for eigenvalues")
-    # eigenValues, eigenVectors = LA.eig(finalMatrix)
-    # indices = eigenValues.argsort()
-    # secondVal = eigenValues[indices[1]]
-    # secondVec = eigenVectors[:, indices[1]]
 
     secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
 
@@ -208,13 +199,13 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                 raise
 
     filename = "/segment_1_"
-    gui.updateLog("Writing image file {}_1.{}".format(filename, fileFormat))
+    gui.updateLog("Writing image file {}1.{}".format(filename, fileFormat))
     data.WriteNewImage(segmentOne, '{}{}1.{}'.format(image_path,filename,fileFormat))     #this will now write to whatever the file format of the original is instead of just tif
     posArrays = {'pixels':posPixels, 'locations':posLocations}
     numpy.savez(pixel_path + filename + "1.npz", **posArrays)
     numpy.save(matrix_path + filename + "1.npy", matrixOne.GetMatrix())
 
-    gui.updateLog("Writing image file {}_2.{}\n".format(filename, fileFormat))
+    gui.updateLog("Writing image file {}2.{}\n".format(filename, fileFormat))
     data.WriteNewImage(segmentTwo, '{}{}2.{}'.format(image_path,filename,fileFormat))
     negArrays = {'pixels':negPixels, 'locations':negLocations}
     numpy.savez(pixel_path + filename + "2.npz", **negArrays)
@@ -284,17 +275,6 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 #            print "Creating diagonal matrix"
             diagonalMatrix = DM(newPixels.size, 1)
             diagonalMatrix.CreateMatrix(newWeightMatrix.GetMatrix())
-
-
-# #            print "Calculating D-W"
-#             finalMatrix = numpy.subtract(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
-#
-#
-# #            print "Solving for eigenvalues"
-#             eigenValues, eigenVectors = LA.eig(finalMatrix)
-#             indices = eigenValues.argsort()
-#             secondVal = eigenValues[indices[1]]
-#             secondVec = eigenVectors[:, indices[1]]
 
             secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
 
