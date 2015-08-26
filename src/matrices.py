@@ -158,7 +158,8 @@ class WeightMatrix(Matrix):
         cpus = mp.cpu_count()
         poolCount = int(cpus - (math.ceil(cpus*0.1)))
         args = [(self, sigmaI, sigmaX, i,) for i in range(self.numPixels)]
-        gui.updateLog('Number of cpu\'s to process weight matrix: %d'%cpus)
+        gui.updateLog('Cpu\'s on machine: %d'%cpus)
+        gui.updateLog('Cpu\'s to process weight matrix: %d'%poolCount)
 
         pool = mp.Pool(processes = poolCount)
         gui.updateLog('Mapping pool processes')

@@ -10,7 +10,7 @@ from plotframe import ScatterPlot
 from plotframe import HistogramPlot
 import time
 import shareGui
-import ipdb
+import pdb
 
 
 def CalculateIntensitySigma(pixelList):
@@ -61,21 +61,28 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
     segmentTwo = numpy.zeros(imageSize, dtype = tuple)
     posIndices = []
     negIndices = []
-
     numPos = 0
     numNeg = 0
+
     for i in range(datasize):
         if secondVec[i] >= dividingValue:
             numPos += 1
-            segmentOne[locations[i]] = imageData[i]
+            try:
+                segmentOne[locations[i]] = tuple(imageData[i])
+            except TypeError:
+                segmentOne[locations[i]] = imageData[i]
             posIndices.append(i)
         else:
             numNeg += 1
-            segmentTwo[locations[i]] = imageData[i]
+            try:
+                segmentTwo[locations[i]] = tuple(imageData[i])
+            except TypeError:
+                segmentTwo[locations[i]] = imageData[i]
             negIndices.append(i)
 
 
     segmentInfo = {'segOne':segmentOne, 'segTwo':segmentTwo, 'posIndices':posIndices, 'negIndices':negIndices}
+
 
     return segmentInfo
 
@@ -88,6 +95,7 @@ def solveEigenVectors(diag, weight):
     secondVal = eigenValues[indices[1]]
     secondVec = eigenVectors[:, indices[1]]
 
+
     return (secondVec)
 
 
@@ -99,6 +107,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     diagonalMatrix = DM(data.width, data.height)
     diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
 
+    gui.updateLog('Solving for eigenvectors')
     secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
 
     # Divide the image into two using the second smallest eigenvector.
@@ -124,6 +133,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     pixelLocations = numpy.arange(imageSize)
     imageData = data.GetImageData()
 
+    gui.updateLog('Dividing image pixel values')
     segmentInfo = DivideImage(secondVec, imageData, imageSize, imageSize, pixelLocations, dividingValue)
     segmentOne = segmentInfo['segOne']
     segmentTwo = segmentInfo['segTwo']
@@ -173,8 +183,8 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
     # Create two arrays, each containing pixels from the original image, using
     # the indices returned from DivideImage.
-    posPixels = numpy.take(imageData, posIndices)
-    negPixels = numpy.take(imageData, negIndices)
+    posPixels = numpy.take(imageData, posIndices, axis=0)
+    negPixels = numpy.take(imageData, negIndices, axis=0)
 
     # Save the pixel locations for each new pixel array.
     posLocations = numpy.take(pixelLocations, posIndices)
@@ -205,11 +215,12 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     numpy.savez(pixel_path + filename + "1.npz", **posArrays)
     numpy.save(matrix_path + filename + "1.npy", matrixOne.GetMatrix())
 
-    gui.updateLog("Writing image file {}2.{}\n".format(filename, fileFormat))
+    gui.updateLog("Writing image file {}2.{}".format(filename, fileFormat))
     data.WriteNewImage(segmentTwo, '{}{}2.{}'.format(image_path,filename,fileFormat))
     negArrays = {'pixels':negPixels, 'locations':negLocations}
     numpy.savez(pixel_path + filename + "2.npz", **negArrays)
     numpy.save(matrix_path + filename + "2.npy", matrixTwo.GetMatrix())
+    gui.updateLog('Done')
 
 
     if(displayPlots):
@@ -251,7 +262,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
             # Get the name of the file without the file extension.
             filename = os.path.splitext(image)[0]
 
-            gui.updateLog("Working on file %s" % image)
+            gui.updateLog("\nWorking on file %s" % image)
             # Create a new ImageFileData object and read in the image file.
             newData = ImageFileData(prev_image_path + "/" + image)
             newData.ReadImage()
@@ -272,10 +283,11 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
 
             # Create a new diagonal matrix.
-#            print "Creating diagonal matrix"
-            diagonalMatrix = DM(newPixels.size, 1)
+            gui.updateLog("Creating diagonal matrix")
+            diagonalMatrix = DM(len(newPixels), 1)                          #had to change .size to len() to count multi-dimensional array items properly
             diagonalMatrix.CreateMatrix(newWeightMatrix.GetMatrix())
 
+            gui.updateLog('Solving for eigenvalues')
             secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), newWeightMatrix.GetMatrix())
 
 
@@ -300,9 +312,9 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                     stepSize = (maxVal - minVal) / numSteps
                     dividingValue = maxVal
 
-
+            gui.updateLog('Dividing image pixel values')
             imageData = data.GetImageData()
-            segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue)
+            segmentInfo = DivideImage(secondVec, newPixels, imageSize, len(newPixels), newLocations, dividingValue)
             segmentOne = segmentInfo['segOne']
             segmentTwo = segmentInfo['segTwo']
             posIndices = segmentInfo['posIndices']
@@ -320,7 +332,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
                 for i in range(numSteps - 1):
 
                     dividingValue = dividingValue - stepSize
-                    segmentInfo = DivideImage(secondVec, newPixels, imageSize, newPixels.size, newLocations, dividingValue)
+                    segmentInfo = DivideImage(secondVec, newPixels, imageSize, len(newPixels), newLocations, dividingValue)
                     segmentOne = segmentInfo['segOne']
                     segmentTwo = segmentInfo['segTwo']
                     posIndices = segmentInfo['posIndices']
@@ -354,8 +366,8 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 
             # Create two arrays of pixels from the original image using
             # the indices returned from DivideImage.
-            posPixels = numpy.take(newPixels, posIndices)
-            negPixels = numpy.take(newPixels, negIndices)
+            posPixels = numpy.take(newPixels, posIndices, axis=0)
+            negPixels = numpy.take(newPixels, negIndices, axis=0)
 
             # Save the pixel locations for each new pixel array.
             posLocations = numpy.take(newLocations, posIndices)
@@ -386,6 +398,8 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     if(displayPlots):                                                                          #Added this if statment to handle adding the scatter and histogram plots to the gui's
         scatterPlotter.displayPlots()                                                          #results frame
         histogramPlotter.displayPlots()
+
+    return
 
 
 # def mergeImages(imageList):                                                                    #This function if for marging many grayscale images into one multi-channel image, will revisit this later
@@ -440,6 +454,11 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     segmentDir = '{}/{}_segmentation/{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile)     #creates two directories titled as the current date > the original image name, to save all output
     dateDir = os.path.split(segmentDir)[0]
     suffix = 1
+    totalSegs = 1
+    for i in range(iterations):
+        i+= 1
+        totalSegs += i**2
+
 
     while(os.path.isdir(segmentDir) == True):                                                        #This while loop ensures no segmentations of a common image are overwritten
         segmentDir = '{}/{}_segmentation/{}_{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageFile, suffix)
@@ -453,8 +472,15 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
             if not os.path.isdir(segmentDir):
                 raise
 
+    gui.updateLog('--- Starting ---\n')
+    gui.updateLog('Creating segmentation directory at: %s' % segmentDir)
+    gui.updateLog('Using base image located at: %s' % imagePath)
+    gui.updateLog('Using divide type of %d' % divideType)
+    gui.updateLog('Using maximum pixel distance of %d' % maxPixelDistance)
+    gui.updateLog('Algorithm with make %d cuts (%d total segments)' % (iterations, totalSegs))
+
     data = ImageFileData(imagePath, segmentDir)
-    gui.updateLog('--- Reading Image ---\n')
+    gui.updateLog('\n--- Reading Image ---\n')
     data.ReadImage()
 
     if smoothValue > 0:

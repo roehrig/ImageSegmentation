@@ -218,6 +218,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
+        self.divideTypeCombo.setCurrentIndex(2)
+        self.maxPixelDistSpin.setValue(8)
+        self.iterationsSpin.setValue(3)
 
         #Packing components
         filesLayout.addWidget(self.open)
@@ -433,9 +436,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayPlts = False
         self.displayRawData = False
 
-        self.divideTypeCombo.setCurrentIndex(0)
-        self.maxPixelDistSpin.setValue(2)
-        self.iterationsSpin.setValue(1)
+        self.divideTypeCombo.setCurrentIndex(2)
+        self.maxPixelDistSpin.setValue(8)
+        self.iterationsSpin.setValue(3)
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
