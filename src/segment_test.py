@@ -504,6 +504,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
 
         gui.updateLog("Image mode is %s" % data.GetImageMode())
         gui.updateLog("Image format is %s" % fileFormat)
+        gui.updateLog("Image channels are: {}".format(channels))
         gui.updateLog("Number of image pixels = %d" % imageSize)
         gui.updateLog("Image width = %d, image height = %d" % dimensions)
         gui.updateLog("Intensity variance = %f" % sigmaI)

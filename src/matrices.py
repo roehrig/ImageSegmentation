@@ -164,6 +164,8 @@ class WeightMatrix(Matrix):
         pool = mp.Pool(processes = poolCount)
         gui.updateLog('Mapping pool processes')
         tempData = pool.map(unwrap_CreateMatrix, args)
+        pool.close()
+        pool.join()
 
         for pixelList in tempData:                                          #This puts the data of each pixel, returned from each seperate process, into self.data
             for pixel in pixelList:
