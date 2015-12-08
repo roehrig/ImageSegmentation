@@ -423,4 +423,4 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
             #meaning there are other image segmentations saved in the date directoy
             pass
 
-        return None
+        gui.setSegmentPath(None)

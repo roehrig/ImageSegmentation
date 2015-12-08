@@ -12,7 +12,7 @@ from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
-
+import pdb
 
 
 class XSDImageSegmentation(qt.QMainWindow):
@@ -556,7 +556,6 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def runSegmentation(self):
-
         #Runs the segmentation by calling segment_test and passing the neccessary parameters, only
         # after the gui is checked to be in a valid state that won't cause errors
         self.discretize = self.discretizeCheck.isChecked()
@@ -575,7 +574,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.logProgress.setDisabled(False)
 
             if(self.displayLog):
-                #Autoatically switch to the activity log frame if "Display Log" is checked
+                #Autmatically switch to the activity log frame if "Display Log" is checked
                 self.logView()
 
             if(self.type == 0):
@@ -677,7 +676,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #changes the grpahic of the progress bar
         while(self.progress.value()<amount):
-            self.progress.setValue(self.progress.value() + 0.5)
+            self.progress.setValue(self.progress.value() + 1)
             self.logProgress.setValue(self.progress.value())
         if(self.progress.value() == 100):
             self.enableAll()
