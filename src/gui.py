@@ -186,6 +186,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothingIterationsSpin = qt.QSpinBox(paramsBox)
         self.iterationsPrompt = qt.QLabel('Algorithm Iterations:', paramsBox)
         self.iterationsSpin = qt.QSpinBox(paramsBox)
+        self.minSizePrompt = qt.QLabel('Minimum Segment Size:', paramsBox)
+        self.minSizeSpin = qt.QSpinBox(paramsBox)
         self.plotsCheck = qt.QCheckBox('Display Plots', outputBox)
         self.rawDataCheck = qt.QCheckBox('Display raw image data', outputBox)
         self.logCheck = qt.QCheckBox('Display activity log', outputBox)
@@ -212,6 +214,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideTypeCombo.addItems(['0','1','2'])
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
+        self.minSizeSpin.setValue(1)
+        self.minSizeSpin.setMinimum(1)
+        self.minSizeSpin.setMaximum(9999)
         self.iterationsSpin.setMinimum(1)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
@@ -236,9 +241,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.smoothCheck, 4, 0)
         paramsLayout.addWidget(self.smoothingIterationsPrompt, 3, 1)
         paramsLayout.addWidget(self.smoothingIterationsSpin, 4, 1)
-        outputLayout.addWidget(self.logCheck, 0, 0)
-        outputLayout.addWidget(self.plotsCheck, 1,0)
-        outputLayout.addWidget(self.rawDataCheck, 2, 0)
+        paramsLayout.addWidget(self.minSizePrompt, 5, 0)
+        paramsLayout.addWidget(self.minSizeSpin, 5, 1)
+        outputLayout.addWidget(self.logCheck, 1, 0)
+        outputLayout.addWidget(self.plotsCheck, 2,0)
+        outputLayout.addWidget(self.rawDataCheck, 3, 0)
         leftLayout.addWidget(paramsBox)
         leftLayout.addWidget(outputBox)
         centerLayout.addWidget(filesBox)
@@ -418,7 +425,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-#------------------------------WIDGET ACTION FUNCTIONS------------------------------
+#------------------------------ WIDGET ACTION FUNCTIONS ------------------------------
 
     def resetAll(self):
 
@@ -439,6 +446,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideTypeCombo.setCurrentIndex(2)
         self.maxPixelDistSpin.setValue(8)
         self.iterationsSpin.setValue(3)
+        self.minSizeSpin.setValue(1)
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
@@ -559,6 +567,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayPlts = self.plotsCheck.isChecked()
         self.displayLog = self.logCheck.isChecked()
         self.displayRawData = self.rawDataCheck.isChecked()
+        self.minSize = self.minSizeSpin.value()
 
         if(self.allValid()):
             self.disableAll()
@@ -570,7 +579,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.logView()
 
             if(self.type == 0):
-                segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations)
+                segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations, self.minSize)
                 if self.segmentPath == None:
                     #In case something (probably discretizing) goes wrong
                     self.resetAll()
@@ -606,7 +615,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         return
 
-#------------------------------HELPER FUNCTIONS------------------------------
+#------------------------------ HELPER FUNCTIONS ------------------------------
 
     def disableAll(self):
 
@@ -668,7 +677,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #changes the grpahic of the progress bar
         while(self.progress.value()<amount):
-            self.progress.setValue(self.progress.value() + 1)
+            self.progress.setValue(self.progress.value() + 0.5)
             self.logProgress.setValue(self.progress.value())
         if(self.progress.value() == 100):
             self.enableAll()
@@ -834,7 +843,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         else:
             return
 
-#------------------------------RUN PROGRAM------------------------------
+#------------------------------ RUN PROGRAM ------------------------------
 
 if __name__ == "__main__":
 

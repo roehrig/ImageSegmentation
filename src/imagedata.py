@@ -119,7 +119,7 @@ class ImageFileData(ImageData):
             answer = gui.showMessage('Error', 'Discretization can only be preformed on grayscale images.\nThe current image has the following bands: '
                                      '\n{}\nPress \'Ok\' to continue segmentation without discretizing, or \'Cancel\' to abort.'.format(self.channels), 'warning')
             if answer == 0:
-                return True
+                pass
             if answer == 1:
                 return False
 

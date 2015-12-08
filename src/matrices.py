@@ -4,7 +4,6 @@ import numpy
 import math
 import multiprocessing as mp
 import shareGui
-import ipdb
 
 
 def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
