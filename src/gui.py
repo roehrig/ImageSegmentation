@@ -12,7 +12,7 @@ from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
-import pdb
+import output
 
 
 class XSDImageSegmentation(qt.QMainWindow):
@@ -43,7 +43,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayLog = True
         self.displayPlts = False
         self.displayRawData = False
-        self.iterations = 0
         self.rawData = None
 
         self.frames()
@@ -184,13 +183,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothCheck = qt.QCheckBox('Smooth image', paramsBox)
         self.smoothingIterationsPrompt = qt.QLabel('Smoothing Iterations:', paramsBox)
         self.smoothingIterationsSpin = qt.QSpinBox(paramsBox)
-        self.iterationsPrompt = qt.QLabel('Algorithm Iterations:', paramsBox)
-        self.iterationsSpin = qt.QSpinBox(paramsBox)
         self.minSizePrompt = qt.QLabel('Minimum Segment Size:', paramsBox)
         self.minSizeSpin = qt.QSpinBox(paramsBox)
+        self.logCheck = qt.QCheckBox('Display activity log', outputBox)
         self.plotsCheck = qt.QCheckBox('Display Plots', outputBox)
         self.rawDataCheck = qt.QCheckBox('Display raw image data', outputBox)
-        self.logCheck = qt.QCheckBox('Display activity log', outputBox)
         self.segment = qt.QPushButton('Segment', bottomFrame)
         self.segment.setStyleSheet('background-color: lightgreen')
         self.reset = qt.QPushButton('Reset', bottomFrame)
@@ -217,7 +214,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.minSizeSpin.setValue(1)
         self.minSizeSpin.setMinimum(1)
         self.minSizeSpin.setMaximum(9999)
-        self.iterationsSpin.setMinimum(1)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logCheck.setChecked(True)
@@ -225,7 +221,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.rawDataCheck.setChecked(False)
         self.divideTypeCombo.setCurrentIndex(2)
         self.maxPixelDistSpin.setValue(8)
-        self.iterationsSpin.setValue(3)
 
         #Packing components
         filesLayout.addWidget(self.open)
@@ -235,12 +230,10 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.divideTypeCombo, 0, 1)
         paramsLayout.addWidget(self.maxPixelDistPrompt, 1, 0)
         paramsLayout.addWidget(self.maxPixelDistSpin, 1, 1)
-        paramsLayout.addWidget(self.iterationsPrompt, 2, 0)
-        paramsLayout.addWidget(self.iterationsSpin, 2, 1)
-        paramsLayout.addWidget(self.discretizeCheck, 3, 0)
-        paramsLayout.addWidget(self.smoothCheck, 4, 0)
-        paramsLayout.addWidget(self.smoothingIterationsPrompt, 3, 1)
-        paramsLayout.addWidget(self.smoothingIterationsSpin, 4, 1)
+        paramsLayout.addWidget(self.smoothCheck, 3, 0)
+        paramsLayout.addWidget(self.smoothingIterationsPrompt, 2, 1)
+        paramsLayout.addWidget(self.smoothingIterationsSpin, 3, 1)
+        paramsLayout.addWidget(self.discretizeCheck, 2, 0)
         paramsLayout.addWidget(self.minSizePrompt, 5, 0)
         paramsLayout.addWidget(self.minSizeSpin, 5, 1)
         outputLayout.addWidget(self.logCheck, 1, 0)
@@ -445,7 +438,6 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         self.divideTypeCombo.setCurrentIndex(2)
         self.maxPixelDistSpin.setValue(8)
-        self.iterationsSpin.setValue(3)
         self.minSizeSpin.setValue(1)
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
@@ -562,11 +554,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideType = int(self.divideTypeCombo.currentText())
         self.maxPixelDist = self.maxPixelDistSpin.value()
         self.smoothingIterations = self.smoothingIterationsSpin.value()
-        self.iterations = self.iterationsSpin.value()
         self.displayPlts = self.plotsCheck.isChecked()
         self.displayLog = self.logCheck.isChecked()
         self.displayRawData = self.rawDataCheck.isChecked()
         self.minSize = self.minSizeSpin.value()
+
 
         if(self.allValid()):
             self.disableAll()
@@ -578,7 +570,9 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.logView()
 
             if(self.type == 0):
-                segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.iterations, self.minSize)
+                segmentData = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.minSize)
+                self.branches = segmentData[0]
+
                 if self.segmentPath == None:
                     #In case something (probably discretizing) goes wrong
                     self.resetAll()
@@ -606,11 +600,12 @@ class XSDImageSegmentation(qt.QMainWindow):
             else:
                 self.resultTabs.setTabEnabled(3, False)
 
-            #Nothing went wrong, display results
+            #Nothing went wrong, display results, and run output functions
             self.isReset = False
             self.noResults.hide()
             self.addImageStructure()
             self.openSegmentDir.setDisabled(False)
+            output.makeSegmentMap(segmentData)
 
         return
 
@@ -627,7 +622,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothCheck.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
         self.maxPixelDistSpin.setDisabled(True)
-        self.iterationsSpin.setDisabled(True)
         self.plotsCheck.setDisabled(True)
         self.rawDataCheck.setDisabled(True)
         self.divideTypeCombo.setDisabled(True)
@@ -651,7 +645,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.logCheck.setDisabled(False)
         self.smoothingIterationsSpin.setDisabled(False)
         self.maxPixelDistSpin.setDisabled(False)
-        self.iterationsSpin.setDisabled(False)
         self.plotsCheck.setDisabled(False)
         self.rawDataCheck.setDisabled(False)
         self.divideTypeCombo.setDisabled(False)
@@ -673,19 +666,19 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def advanceProgressBar(self, amount):
-
         #changes the grpahic of the progress bar
-        while(self.progress.value()<amount):
-            self.progress.setValue(self.progress.value() + 1)
-            self.logProgress.setValue(self.progress.value())
+        self.progress.setValue(amount)
+        self.logProgress.setValue(amount)
         if(self.progress.value() == 100):
             self.enableAll()
+        app.processEvents()
         return
 
 
     def updateLog(self, string):
         #adds lines to the activity log
         self.log.appendPlainText(string)
+        app.processEvents()
         return
 
 
@@ -754,9 +747,9 @@ class XSDImageSegmentation(qt.QMainWindow):
     def addImageStructure(self):
         #Creates and organizes a structure (grid) for all segmented images written in imagedata.py to be added to the results
         #page under the 'Segmentation' tab
-
         cuts = []
         c = 1   #cut number
+        self.s = 0   #segment number
         i = 1   #row
         j = 0   #column
         originalLabel = qt.QLabel('Original Image', self.segmentsFrame)
@@ -807,6 +800,9 @@ class XSDImageSegmentation(qt.QMainWindow):
             pixMap = qt.QPixmap(cut)
             imageHolder = qt.QLabel(imageFrame)
             imageHolder.setMinimumSize(width, height)
+            if(self.s > 0 and self.branches[self.s-1] == 0):
+                imageHolder.setStyleSheet('border: 5px solid red;')
+            self.s += 1
             scaledMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
             imageHolder.setPixmap(scaledMap)
             imageLayout.addWidget(imageHolder)

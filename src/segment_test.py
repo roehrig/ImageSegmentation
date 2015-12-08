@@ -126,7 +126,8 @@ def workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlot
 
         if(len(newPixels) < minSize):
             gui.updateLog('Skipping file %s: segment is below specified minimum size.' % image)
-            return
+            #return value of '0' means the segmentation on this branch has ended
+            return(0)
 
         # Load the matrix data and create a new WeightMatrix
         temp = numpy.matrix(numpy.load(prev_matrix_path + "/" + filename + ".npy"))
@@ -232,32 +233,34 @@ def workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlot
     #Final output to image files
     #Segment One-----------------------------------------------
     filename = "/segment_%d_%d" % (cutNumber, imageNumber)
-    if(numpy.var(posPixels) > 110 and numpy.mean(posPixels) > 20):
+    #if(numpy.var(posPixels) > 110 and numpy.mean(posPixels) > 20):
 
-        # Save the pixel locations for each new pixel array.
-        posLocations = numpy.take(pixelLocations, posIndices)
-        gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
-        data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat))
-        posArrays = {'pixels':posPixels, 'locations':posLocations}
-        numpy.savez(pixel_path + "/%s.npz" % filename, **posArrays)
-        numpy.save(matrix_path + "/%s.npy" % filename, matrixOne.GetMatrix())
-    else:
-        gui.updateLog("Discarding image file {}, low variance and intensity mean implies background segment".format(filename))
+    # Save the pixel locations for each new pixel array.
+    posLocations = numpy.take(pixelLocations, posIndices)
+    gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
+    data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat))
+    posArrays = {'pixels':posPixels, 'locations':posLocations}
+    numpy.savez(pixel_path + "/%s.npz" % filename, **posArrays)
+    numpy.save(matrix_path + "/%s.npy" % filename, matrixOne.GetMatrix())
+
+    #else:
+        #gui.updateLog("Discarding image file {}, low variance and intensity mean implies background segment".format(filename))
 
     imageNumber += 1
 
     #Segment Two-----------------------------------------------
     filename = "/segment_%d_%d" % (cutNumber, imageNumber)
-    if(numpy.var(negPixels) > 110 and numpy.mean(negPixels) > 16):
+    #if(numpy.var(negPixels) > 110 and numpy.mean(negPixels) > 16):
 
-        negLocations = numpy.take(pixelLocations, negIndices)
-        gui.updateLog("Writing image file {}.{}\n".format(filename, fileFormat))
-        data.WriteNewImage(segmentTwo, '{}{}.{}'.format(image_path, filename, fileFormat))
-        negArrays = {'pixels':negPixels, 'locations':negLocations}
-        numpy.savez(pixel_path + "/%s.npz" % filename, **negArrays)
-        numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
-    else:
-        gui.updateLog("Discarding image file {}, low variance and intensity mean implies background segment".format(filename))
+    negLocations = numpy.take(pixelLocations, negIndices)
+    gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
+    data.WriteNewImage(segmentTwo, '{}{}.{}'.format(image_path, filename, fileFormat))
+    negArrays = {'pixels':negPixels, 'locations':negLocations}
+    numpy.savez(pixel_path + "/%s.npz" % filename, **negArrays)
+    numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
+
+    #else:
+        #gui.updateLog("Discarding image file {}, low variance and intensity mean implies background segment".format(filename))
 
 
     #Displays scatter plots and histograms in the results panel in the gui if selected
@@ -268,40 +271,57 @@ def workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlot
             scatPlt.AddPlot(image, secondVec)
             histPlt.AddPlot(image, secondVec)
 
-    return
+    #return value of '1' means the segmentation is still going on this branch
+    return(1)
 
 
 #Starts the algorithm, repeats it for each new segment
-def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, iterations, minSize):
+def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, minSize):
 
+    #-------------------- First segment --------------------
     gui = shareGui.getGui()
     cutNumber = 1
     imageNumber = 1
+    #'branches' is a list of 1's and 0's, with a zero in the index of a branch-ending segment (a segment that has reached
+    # the minSize and will not be cut any further). At the end of segmentation, all segments should be a 0.
+    #'currentBranches is a list of the images in the current working directory (set of segments from previous cut). If all
+    # these are 0, the algorithm knows to stop
+    branches = []
+    currentBranches = [1] # = [1] simply to start while loop
     #define path for output
     paths = definePath(cutNumber, image_dir)
 
     workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, None)
-
     gui.advanceProgressBar(60)
 
-    #algorithm iterations user-defined in gui
-    while cutNumber < iterations:
+    #-------------------- Subsequent segments --------------------
 
-        gui.advanceProgressBar(40/iterations)
+    #while there is still an ongoing branch (with a segment above minSize), continue segmentation on those branches
+    while (numpy.sum(currentBranches) > 0):
+
+        gui.advanceProgressBar(60 + 2*cutNumber)
         imageNumber = 1
         cutNumber += 1
         #update path for output
         paths = definePath(cutNumber, image_dir)
+        #preallocate space for currentBranches as large as the number of active segments left from the last cut (active = >minSize)
+        currentBranches = numpy.zeros(len(os.listdir(paths[3])), dtype = int)
+        i = 0
 
         # Iterate through the image files and weight matrix files of the previous cut
         for image in os.listdir(paths[3]):
-            workSegment(minSize, None, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, image)
+            currentBranches[i] = workSegment(minSize, None, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, image)
             imageNumber += 2
+            i += 1
+        #add contents of currentBranch to branches
+        branches.extend(currentBranches)
 
-    return
+
+    return(branches)
+
 
 #initiates the segmentation; makes directories, loads image data, builds weight matrix, etc.
-def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, iterations, minSize):
+def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, minSize):
 
     '''
     :param divideType = Set the type of dividing to be done.
@@ -313,6 +333,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     :param smoothValue = iterations of smoothing (smoothing not called if smoothValue = 0)
     :param displayPlots = self explanatory boolean
     :param iterations = number of times to run the algorithm
+    :param maxIterations = whether or not to run the algorithm until all segments have reached minimum size
     :param minSize = minimum desired size of segments (if a segment becomes much smaller han the known imaged sample, it can be thrown away)
     :return segmentDir or None
     '''
@@ -325,10 +346,6 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     segmentDir = '{}/{}_segmentation/{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageName)
     dateDir = os.path.split(segmentDir)[0]
     suffix = 1
-    totalSegs = 1
-    for i in range(iterations):
-        i+= 1
-        totalSegs += i**2
 
     #This while loop ensures no segmentations of a common image are overwritten
     while(os.path.isdir(segmentDir) == True):
@@ -349,7 +366,6 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     gui.updateLog('Using divide type of %d' % divideType)
     gui.updateLog('Using maximum pixel distance of %d' % maxPixelDistance)
     gui.updateLog('Using minimum segment size of %d' % minSize)
-    gui.updateLog('Algorithm with make %d cuts (%d total segments)' % (iterations, totalSegs))
 
     #loads selected image into imagedata object
     data = ImageFileData(imagePath, segmentDir)
@@ -402,13 +418,15 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         #Starts segmentation
         gui.updateLog('\n--- Starting segmentation ---\n')
         t0 = time.time()
-        SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, iterations, minSize)
+        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, minSize)
         t2 = '%.2f' % (time.time() - t0)
         gui.advanceProgressBar(100)
-        gui.updateLog('\n\n--- Segmentation completed (took %d seconds). Click the results icon in the toolbar to view segments and plots. ---' % t2)
+        gui.updateLog('\n\n--- Segmentation completed (took {} seconds). Click the results icon in the toolbar to view segments and plots. ---'.format(t2))
 
         gui.setSegmentPath(segmentDir)
         gui.setRawData(list(imageData))
+        segmentData = [branches]
+        return(segmentData)
 
     else:
         #If gui recieves None instead of segmentDir, it knows the segmentation was aborted
@@ -424,3 +442,4 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
             pass
 
         gui.setSegmentPath(None)
+        return
