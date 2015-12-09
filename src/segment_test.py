@@ -90,11 +90,6 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
     return segmentInfo
 
 
-#flags segments as background or foreground
-def determineBg():
-    pass
-
-
 #Preforms the algorithm
 def workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, image):
 
@@ -143,7 +138,7 @@ def workSegment(minSize, weightMatrix, data, divideType, fileFormat, displayPlot
         gui.updateLog("Reading matrix of size %dx%d from file %s.npy" % (temp.shape[0], temp.shape[1], filename))
 
     # Create a new diagonal matrix.
-    gui = shareGui.getGui()
+    #gui = shareGui.getGui()
     gui.updateLog("Creating diagonal matrix")
     if (cutNumber > 1):
         diagonalMatrix = DM(len(newPixels), 1)                          #had to change .size to len() to count multi-dimensional array items properly
@@ -432,7 +427,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
 
         gui.setSegmentPath(segmentDir)
         gui.setRawData(list(imageData))
-        #This is the ultimate return back to the gui, a list of data resultant from the segmentation, for teh gui to then pass to output.py and finalize
+        #This is the ultimate return back to the gui, a list of data resultant from the segmentation, for the gui to then pass to output.py and finalize
         segmentData = [branches, segmentDir, data, dimensions]
         return(segmentData)
 

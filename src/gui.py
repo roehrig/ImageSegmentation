@@ -4,16 +4,18 @@ import sys
 import os
 import subprocess
 import platform
-import segment_test
-import plotframe
-import shareGui
 import time
+
 from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
-import output
 import numpy
+
+import segment_test
+import plotframe
+import shareGui
+from src import output
 
 
 class XSDImageSegmentation(qt.QMainWindow):
@@ -840,20 +842,26 @@ class XSDImageSegmentation(qt.QMainWindow):
     def makeSegmentMap(self):
 
         segmentDir, dimensions = self.segmentData[1], self.segmentData[3]
-        finalSegments = self.results[0]
+        finalSegments, backgroundSegments = self.results[0], self.results[1]
 
         width = dimensions[0]
         height = dimensions[1]
         ratio = width/height
+        isBackground = False
         imageSize = width*height
         map = numpy.zeros(imageSize, dtype=int)
         dest = '{}/segmentMap.png'.format(segmentDir)
 
-        for segment in finalSegments:
+
+        for n in range(len(finalSegments)):
+            segment = finalSegments[n]
+            if(backgroundSegments[n] == 1): isBackground = True
+            else: isBackground = False
             tempMap = numpy.zeros(imageSize, dtype=int)
 
-            #'segment' is one entry in finalSegments, which is a list of lists, each containing the pixel indices of each final segment.
-            #so, we take each one of those indices, and set it to '1' on the map.
+            #'segment' is one entry in finalSegments, which is a list of lists, each list (segment) containing the pixel indices of that final segment.
+            #so, we take each one of those indices, and set it to '1' on the map, meaning that that index in the original image has a pixel in this segment.
+            #If that pixel is a background pixel, then we set it to '2'
             for index in segment:
                 tempMap[index] = 1
 
@@ -868,14 +876,18 @@ class XSDImageSegmentation(qt.QMainWindow):
                     #all pixels that do not have a neighbor on every side must be a boundary pixel of this segment, so it is drawn into the map
                     if(neighborCount != 4):
                         map[pixel] = 1
+                    elif(isBackground):
+                        map[pixel] = 2
 
-        #saving to file as RGBA with half opacity in the Alpha channel; borders are red
-        picData = numpy.zeros(imageSize, dtype=tuple)
+        #we are now left with a map with a '0' for a foreground pixel, a '1' for a border pixel, and a '2' for a background pixel
+        #saving to file as RGBA with half opacity in the Alpha channel; borders are red; backgrounds are orange
+        mapColor = numpy.zeros(imageSize, dtype=tuple)
         for index in range(len(map)):
-            if map[index] == 1: picData[index] = (255,0,0,175)
-            else: picData[index] = (0,0,0,0)
+            if map[index] == 1: mapColor[index] = (255,0,0,90)
+            elif map[index] == 2: mapColor[index] = (255,205,0,50)
+            else: mapColor[index] = (0,0,0,0)
         c = Image.new('RGBA', dimensions)
-        c.putdata(picData)
+        c.putdata(mapColor)
         c.save(dest)
 
         #Creating pixel map of the saved map file and building a QtLabel to hold it
