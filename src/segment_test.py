@@ -12,6 +12,7 @@ import time
 import shareGui
 import pdb
 
+
 #Creates the segmentation save destination
 def definePath(cutNumber, image_dir):
 
@@ -38,6 +39,7 @@ def definePath(cutNumber, image_dir):
 
     paths = [image_path, pixel_path, matrix_path, prev_image_path, prev_pixel_path, prev_matrix_path]
     return paths
+
 
 #subtracts the weight matrix from the diagonal weight matrix, solves for eigenvectors, and returns the second eigenvector
 def solveEigenVectors(diag, weight):
@@ -86,6 +88,11 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 
 
     return segmentInfo
+
+
+#flags segments as background or foreground
+def determineBg():
+    pass
 
 
 #Preforms the algorithm
@@ -425,7 +432,8 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
 
         gui.setSegmentPath(segmentDir)
         gui.setRawData(list(imageData))
-        segmentData = [branches]
+        #This is the ultimate return back to the gui, a list of data resultant from the segmentation, for teh gui to then pass to output.py and finalize
+        segmentData = [branches, segmentDir, data, dimensions]
         return(segmentData)
 
     else:

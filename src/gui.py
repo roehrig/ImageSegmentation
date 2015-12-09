@@ -13,6 +13,7 @@ from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
 import output
+import numpy
 
 
 class XSDImageSegmentation(qt.QMainWindow):
@@ -188,6 +189,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.logCheck = qt.QCheckBox('Display activity log', outputBox)
         self.plotsCheck = qt.QCheckBox('Display Plots', outputBox)
         self.rawDataCheck = qt.QCheckBox('Display raw image data', outputBox)
+        self.showMapRadio = qt.QRadioButton('Display segment map', outputBox)
+        self.showSegmentsRadio = qt.QRadioButton('Display all segments', outputBox)
         self.segment = qt.QPushButton('Segment', bottomFrame)
         self.segment.setStyleSheet('background-color: lightgreen')
         self.reset = qt.QPushButton('Reset', bottomFrame)
@@ -214,6 +217,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.minSizeSpin.setValue(1)
         self.minSizeSpin.setMinimum(1)
         self.minSizeSpin.setMaximum(9999)
+        self.showMapRadio.setChecked(True)
+        self.showSegmentsRadio.setChecked(False)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logCheck.setChecked(True)
@@ -239,6 +244,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         outputLayout.addWidget(self.logCheck, 1, 0)
         outputLayout.addWidget(self.plotsCheck, 2,0)
         outputLayout.addWidget(self.rawDataCheck, 3, 0)
+        outputLayout.addWidget(self.showMapRadio, 4, 0)
+        outputLayout.addWidget(self.showSegmentsRadio, 5, 0)
         leftLayout.addWidget(paramsBox)
         leftLayout.addWidget(outputBox)
         centerLayout.addWidget(filesBox)
@@ -447,6 +454,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothingIterationsSpin.setValue(0)
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
+        self.showMapRadio.setChecked(True)
+        self.showSegmentsRadio.setChecked(False)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logProgress.setValue(0)
@@ -558,6 +567,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayLog = self.logCheck.isChecked()
         self.displayRawData = self.rawDataCheck.isChecked()
         self.minSize = self.minSizeSpin.value()
+        self.showSegments = self.showSegmentsRadio.isChecked()
+        self.showMap = self.showMapRadio.isChecked()
 
 
         if(self.allValid()):
@@ -570,8 +581,10 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.logView()
 
             if(self.type == 0):
-                segmentData = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.minSize)
-                self.branches = segmentData[0]
+                #gui recieves a list of segmentation results as return, and stores it as 'segmentData'. Only the first entry in this list is used
+                #here in the gui, and the rest (the entire list) is then passed to output.finish() below
+                self.segmentData = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.minSize)
+                self.branches = self.segmentData[0]
 
                 if self.segmentPath == None:
                     #In case something (probably discretizing) goes wrong
@@ -603,9 +616,13 @@ class XSDImageSegmentation(qt.QMainWindow):
             #Nothing went wrong, display results, and run output functions
             self.isReset = False
             self.noResults.hide()
-            self.addImageStructure()
             self.openSegmentDir.setDisabled(False)
-            output.makeSegmentMap(segmentData)
+            self.results = output.finish(self.segmentData)
+
+            if(self.showSegments):
+                self.addImageStructure()
+            if(self.showMap):
+                self.makeSegmentMap()
 
         return
 
@@ -626,6 +643,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.rawDataCheck.setDisabled(True)
         self.divideTypeCombo.setDisabled(True)
         self.logCheck.setDisabled(True)
+        self.showSegmentsRadio.setDisabled(True)
+        self.showMapRadio.setDisabled(True)
         self.toolBar.setDisabled(True)
         self.reset.setDisabled(True)
         self.resultsReset.setDisabled(True)
@@ -648,6 +667,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.plotsCheck.setDisabled(False)
         self.rawDataCheck.setDisabled(False)
         self.divideTypeCombo.setDisabled(False)
+        self.showSegmentsRadio.setDisabled(False)
+        self.showMapRadio.setDisabled(False)
         self.toolBar.setDisabled(False)
         self.reset.setDisabled(False)
         self.resultsReset.setDisabled(False)
@@ -814,6 +835,67 @@ class XSDImageSegmentation(qt.QMainWindow):
                 j = 0
                 i += 1
         return(i)
+
+    #this function creates a "map" of the final segents on one image
+    def makeSegmentMap(self):
+
+        segmentDir, dimensions = self.segmentData[1], self.segmentData[3]
+        finalSegments = self.results[0]
+
+        width = dimensions[0]
+        height = dimensions[1]
+        ratio = width/height
+        imageSize = width*height
+        map = numpy.zeros(imageSize, dtype=int)
+        dest = '{}/segmentMap.png'.format(segmentDir)
+
+        for segment in finalSegments:
+            tempMap = numpy.zeros(imageSize, dtype=int)
+
+            #'segment' is one entry in finalSegments, which is a list of lists, each containing the pixel indices of each final segment.
+            #so, we take each one of those indices, and set it to '1' on the map.
+            for index in segment:
+                tempMap[index] = 1
+
+            for pixel in range(len(tempMap)):
+
+                #the neighbor count of each pixel is found. If they have a neighbor on everyside, they are interior to a segment, as is
+                #omitted from the map image. If fiding the neighbors returns an IndexError, then this is a border pixel, and can be part of the map
+                if tempMap[pixel] == 1:
+                    try: neighborCount = tempMap[pixel+1] + tempMap[pixel-1] + tempMap[pixel-width] + tempMap[pixel+width]
+                    except IndexError: neighborCount = 0
+
+                    #all pixels that do not have a neighbor on every side must be a boundary pixel of this segment, so it is drawn into the map
+                    if(neighborCount != 4):
+                        map[pixel] = 1
+
+        #saving to file as RGBA with half opacity in the Alpha channel; borders are red
+        picData = numpy.zeros(imageSize, dtype=tuple)
+        for index in range(len(map)):
+            if map[index] == 1: picData[index] = (255,0,0,175)
+            else: picData[index] = (0,0,0,0)
+        c = Image.new('RGBA', dimensions)
+        c.putdata(picData)
+        c.save(dest)
+
+        #Creating pixel map of the saved map file and building a QtLabel to hold it
+        mapLabel = qt.QLabel('Segmentation Map', self.segmentsFrame)
+        mapLabel.setFont(self.emphasis1)
+        pixMap = qt.QPixmap(self.imagePath) #original image
+        pixMapOverlay = qt.QPixmap(dest) #segmentation map
+        imageHolder = qt.QLabel(self.segmentsFrame)
+        imageHolder.setMinimumSize(450, 450/ratio)
+        mapHolder = qt.QLabel(self.segmentsFrame)
+        mapHolder.setMinimumSize(450, 450/ratio)
+        scaledPixMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
+        scaledPixMapOverlay = pixMapOverlay.scaled(mapHolder.size(), QtCore.Qt.KeepAspectRatio)
+        mapHolder.setPixmap(scaledPixMapOverlay)
+        imageHolder.setPixmap(scaledPixMap)
+
+        #Adding components to reuslts window
+        self.segmentsLayout.addWidget(mapLabel, 0, 0)
+        self.segmentsLayout.addWidget(imageHolder, 1, 0)
+        self.segmentsLayout.addWidget(mapHolder, 1, 0)
 
 
     def returnDiscretized(self, discretizedPath):
