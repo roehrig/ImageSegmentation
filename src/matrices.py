@@ -5,10 +5,12 @@ import math
 import multiprocessing as mp
 import shareGui
 
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
     return WeightMatrix.CreateMatrixPixelA(*args)
 
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 class Matrix():
     '''
@@ -68,6 +70,8 @@ class Matrix():
     def SaveToFile(self, path):
         numpy.save(path, self.matrix)
         return
+
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 class WeightMatrix(Matrix):
     '''
@@ -225,6 +229,7 @@ class WeightMatrix(Matrix):
 #        return (edgeSum, posMatrix, negMatrix)
         return (cutsize, posMatrix, negMatrix)
 
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 class DiagonalMatrix(Matrix):
     '''

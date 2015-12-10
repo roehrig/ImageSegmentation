@@ -12,11 +12,13 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
 import numpy
 
-import segment_test
+import segmentation
 import plotframe
 import shareGui
-from src import output
+import finalize
+import output
 
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 class XSDImageSegmentation(qt.QMainWindow):
 
@@ -56,7 +58,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.buildResultsFrame()
         self.show()
 
-#------------------------------CREATING MAIN LEVEL COMPONENTS------------------------------
+#----------------------------------------CREATING MAIN LEVEL COMPONENTS----------------------------------------
 
     def frames(self):
 
@@ -148,7 +150,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.toolBar.addAction(self.resultsTool)
         return
 
-#------------------------------BUILDING ALL PAGES------------------------------
+#----------------------------------------BUILDING ALL PAGES---------------------------------------
 
     def buildMainFrame(self):
 
@@ -186,13 +188,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothCheck = qt.QCheckBox('Smooth image', paramsBox)
         self.smoothingIterationsPrompt = qt.QLabel('Smoothing Iterations:', paramsBox)
         self.smoothingIterationsSpin = qt.QSpinBox(paramsBox)
-        self.minSizePrompt = qt.QLabel('Minimum Segment Size:', paramsBox)
-        self.minSizeSpin = qt.QSpinBox(paramsBox)
+        self.haltThresholdPrompt = qt.QLabel('Halting Threshold:', paramsBox)
+        self.haltThresholdSpin = qt.QSpinBox(paramsBox)
         self.logCheck = qt.QCheckBox('Display activity log', outputBox)
         self.plotsCheck = qt.QCheckBox('Display Plots', outputBox)
         self.rawDataCheck = qt.QCheckBox('Display raw image data', outputBox)
-        self.showMapRadio = qt.QRadioButton('Display segment map', outputBox)
-        self.showSegmentsRadio = qt.QRadioButton('Display all segments', outputBox)
         self.segment = qt.QPushButton('Segment', bottomFrame)
         self.segment.setStyleSheet('background-color: lightgreen')
         self.reset = qt.QPushButton('Reset', bottomFrame)
@@ -216,11 +216,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideTypeCombo.addItems(['0','1','2'])
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
-        self.minSizeSpin.setValue(1)
-        self.minSizeSpin.setMinimum(1)
-        self.minSizeSpin.setMaximum(9999)
-        self.showMapRadio.setChecked(True)
-        self.showSegmentsRadio.setChecked(False)
+        self.haltThresholdSpin.setValue(1)
+        self.haltThresholdSpin.setMinimum(1)
+        self.haltThresholdSpin.setMaximum(9999)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logCheck.setChecked(True)
@@ -241,13 +239,11 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.smoothingIterationsPrompt, 2, 1)
         paramsLayout.addWidget(self.smoothingIterationsSpin, 3, 1)
         paramsLayout.addWidget(self.discretizeCheck, 2, 0)
-        paramsLayout.addWidget(self.minSizePrompt, 5, 0)
-        paramsLayout.addWidget(self.minSizeSpin, 5, 1)
+        paramsLayout.addWidget(self.haltThresholdPrompt, 5, 0)
+        paramsLayout.addWidget(self.haltThresholdSpin, 5, 1)
         outputLayout.addWidget(self.logCheck, 1, 0)
         outputLayout.addWidget(self.plotsCheck, 2,0)
         outputLayout.addWidget(self.rawDataCheck, 3, 0)
-        outputLayout.addWidget(self.showMapRadio, 4, 0)
-        outputLayout.addWidget(self.showSegmentsRadio, 5, 0)
         leftLayout.addWidget(paramsBox)
         leftLayout.addWidget(outputBox)
         centerLayout.addWidget(filesBox)
@@ -379,7 +375,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         resultsLayout.addWidget(self.bottomResultsFrame)
         return
 
-#------------------------------TOOLBAR BUTTON FUNCTIONS------------------------------
+#----------------------------------------TOOLBAR BUTTON FUNCTIONS----------------------------------------
 
     def multiImageView(self):
 
@@ -427,7 +423,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-#------------------------------ WIDGET ACTION FUNCTIONS ------------------------------
+#---------------------------------------- WIDGET ACTION FUNCTIONS ----------------------------------------
 
     def resetAll(self):
 
@@ -447,7 +443,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         self.divideTypeCombo.setCurrentIndex(2)
         self.maxPixelDistSpin.setValue(8)
-        self.minSizeSpin.setValue(1)
+        self.haltThresholdSpin.setValue(1)
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
@@ -456,8 +452,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothingIterationsSpin.setValue(0)
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
-        self.showMapRadio.setChecked(True)
-        self.showSegmentsRadio.setChecked(False)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logProgress.setValue(0)
@@ -541,13 +535,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    def blowupImage(self, cut):
-        def blowUp():
-            image = Image.open(cut)
-            image.show()
-        return blowUp
-
-
     def openSegmentDirectory(self):
         if platform.system() == "Windows":
             os.startfile(self.segmentPath)
@@ -568,9 +555,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayPlts = self.plotsCheck.isChecked()
         self.displayLog = self.logCheck.isChecked()
         self.displayRawData = self.rawDataCheck.isChecked()
-        self.minSize = self.minSizeSpin.value()
-        self.showSegments = self.showSegmentsRadio.isChecked()
-        self.showMap = self.showMapRadio.isChecked()
+        self.haltThreshold = self.haltThresholdSpin.value()
 
 
         if(self.allValid()):
@@ -585,7 +570,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             if(self.type == 0):
                 #gui recieves a list of segmentation results as return, and stores it as 'segmentData'. Only the first entry in this list is used
                 #here in the gui, and the rest (the entire list) is then passed to output.finish() below
-                self.segmentData = segment_test.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.minSize)
+                self.segmentData = segmentation.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.haltThreshold)
                 self.branches = self.segmentData[0]
 
                 if self.segmentPath == None:
@@ -619,16 +604,13 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.isReset = False
             self.noResults.hide()
             self.openSegmentDir.setDisabled(False)
-            self.results = output.finish(self.segmentData)
-
-            if(self.showSegments):
-                self.addImageStructure()
-            if(self.showMap):
-                self.makeSegmentMap()
+            self.results = finalize.finish(self.segmentData)
+            self.makeSegmentMap()
+            output.toMAPS(self.results)
 
         return
 
-#------------------------------ HELPER FUNCTIONS ------------------------------
+#---------------------------------------- HELPER FUNCTIONS ----------------------------------------
 
     def disableAll(self):
 
@@ -645,8 +627,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.rawDataCheck.setDisabled(True)
         self.divideTypeCombo.setDisabled(True)
         self.logCheck.setDisabled(True)
-        self.showSegmentsRadio.setDisabled(True)
-        self.showMapRadio.setDisabled(True)
         self.toolBar.setDisabled(True)
         self.reset.setDisabled(True)
         self.resultsReset.setDisabled(True)
@@ -669,8 +649,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.plotsCheck.setDisabled(False)
         self.rawDataCheck.setDisabled(False)
         self.divideTypeCombo.setDisabled(False)
-        self.showSegmentsRadio.setDisabled(False)
-        self.showMapRadio.setDisabled(False)
         self.toolBar.setDisabled(False)
         self.reset.setDisabled(False)
         self.resultsReset.setDisabled(False)
@@ -767,125 +745,26 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    def addImageStructure(self):
-        #Creates and organizes a structure (grid) for all segmented images written in imagedata.py to be added to the results
-        #page under the 'Segmentation' tab
-        cuts = []
-        c = 1   #cut number
-        self.s = 0   #segment number
-        i = 1   #row
-        j = 0   #column
-        originalLabel = qt.QLabel('Original Image', self.segmentsFrame)
-        originalLabel.setFont(self.emphasis1)
-        self.segmentsLayout.addWidget(originalLabel, 0, 0)
-        #self.imagePath is the path to the original image
-        cuts.append(self.imagePath)
-        self.addImages(cuts, i, j, '>> Open image file')
-        #'dirs' gets the list of directories created during segmentation (to get all "cut_n"'s)
-        dirs = next(os.walk(self.segmentPath))[1]
-        dirs.sort()
-
-        for dir in dirs:
-            i += 1
-            j = 0
-            dir = '/{}'.format(dir)
-            if dir.find('/cut_') != -1:
-                #'cuts' gets list of all images in the current "cut_n" directory
-                cuts = next(os.walk('{}{}'.format(self.segmentPath, dir)))[2]
-                cuts.sort()
-                for n in range(len(cuts)):
-                    cuts[n] = self.segmentPath + ('/cut_%d/' % c) + cuts[n]
-                cutLabel = qt.QLabel('\nCut %d' % c, self.segmentsFrame)
-                cutLabel.setFont(self.emphasis1)
-                self.segmentsLayout.addWidget(cutLabel, i, 0)
-                c += 1
-                i += 1
-                i = self.addImages(cuts, i, j, '>>')
-
-        return
-
-
-    def addImages(self, cuts, i, j, buttonText):
-        #helper function for addImageStructure() above, inserts the images one by one
-
-        width = 150
-        height = 150
-        #maxColumn is how far over the images will line to the right before starting a "new line" of images
-        maxColumn = 3
-
-        for cut in cuts:
-            imageFrame = qt.QFrame(self.segmentsFrame)
-            imageLayout = qt.QVBoxLayout(imageFrame)
-            blowupButton = qt.QPushButton(buttonText, imageFrame)
-            blowupButton.setMaximumWidth(width)
-            blowupButton.clicked.connect(self.blowupImage(cut))
-            blowupButton.setToolTip('Open image file')
-            pixMap = qt.QPixmap(cut)
-            imageHolder = qt.QLabel(imageFrame)
-            imageHolder.setMinimumSize(width, height)
-            if(self.s > 0 and self.branches[self.s-1] == 0):
-                imageHolder.setStyleSheet('border: 5px solid red;')
-            self.s += 1
-            scaledMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
-            imageHolder.setPixmap(scaledMap)
-            imageLayout.addWidget(imageHolder)
-            imageLayout.addWidget(blowupButton)
-            self.segmentsLayout.addWidget(imageFrame, i, j)
-            if j < maxColumn:
-                j += 1
-            else:
-                j = 0
-                i += 1
-        return(i)
-
-    #this function creates a "map" of the final segents on one image
+    #this function turns the map from output.mapBorders() into a color image
     def makeSegmentMap(self):
 
-        segmentDir, dimensions = self.segmentData[1], self.segmentData[3]
-        finalSegments, backgroundSegments = self.results[0], self.results[1]
-
+        segmentDir, dimensions = self.segmentData[1], self.segmentData[3] #returned from segmentation.start()
+        map = self.results[2] #returned from finalize.finish()
         width = dimensions[0]
         height = dimensions[1]
         ratio = width/height
-        isBackground = False
         imageSize = width*height
-        map = numpy.zeros(imageSize, dtype=int)
         dest = '{}/segmentMap.png'.format(segmentDir)
 
 
-        for n in range(len(finalSegments)):
-            segment = finalSegments[n]
-            if(backgroundSegments[n] == 1): isBackground = True
-            else: isBackground = False
-            tempMap = numpy.zeros(imageSize, dtype=int)
-
-            #'segment' is one entry in finalSegments, which is a list of lists, each list (segment) containing the pixel indices of that final segment.
-            #so, we take each one of those indices, and set it to '1' on the map, meaning that that index in the original image has a pixel in this segment.
-            #If that pixel is a background pixel, then we set it to '2'
-            for index in segment:
-                tempMap[index] = 1
-
-            for pixel in range(len(tempMap)):
-
-                #the neighbor count of each pixel is found. If they have a neighbor on everyside, they are interior to a segment, as is
-                #omitted from the map image. If fiding the neighbors returns an IndexError, then this is a border pixel, and can be part of the map
-                if tempMap[pixel] == 1:
-                    try: neighborCount = tempMap[pixel+1] + tempMap[pixel-1] + tempMap[pixel-width] + tempMap[pixel+width]
-                    except IndexError: neighborCount = 0
-
-                    #all pixels that do not have a neighbor on every side must be a boundary pixel of this segment, so it is drawn into the map
-                    if(neighborCount != 4):
-                        map[pixel] = 1
-                    elif(isBackground):
-                        map[pixel] = 2
-
-        #we are now left with a map with a '0' for a foreground pixel, a '1' for a border pixel, and a '2' for a background pixel
         #saving to file as RGBA with half opacity in the Alpha channel; borders are red; backgrounds are orange
         mapColor = numpy.zeros(imageSize, dtype=tuple)
+
         for index in range(len(map)):
-            if map[index] == 1: mapColor[index] = (255,0,0,90)
-            elif map[index] == 2: mapColor[index] = (255,205,0,50)
-            else: mapColor[index] = (0,0,0,0)
+            if map[index] == 1: mapColor[index] = (255,0,0,90) #transparent red for border
+            elif map[index] == 2: mapColor[index] = (117,205,255,50) #transparent cyan for background
+            else: mapColor[index] = (0,0,0,0) #fully transparent for foreground
+
         c = Image.new('RGBA', dimensions)
         c.putdata(mapColor)
         c.save(dest)
@@ -932,7 +811,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         else:
             return
 
-#------------------------------ RUN PROGRAM ------------------------------
+#---------------------------------------- RUN PROGRAM ---------------------------------------
 
 if __name__ == "__main__":
 

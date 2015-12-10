@@ -6,6 +6,8 @@ from pixel import *
 import shareGui
 import os
 
+#--------------------------------------------------------------------------------------------------------------------------------------
+
 class ImageData():
 
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
@@ -50,6 +52,8 @@ class ImageData():
         return self.fileFormat
 
 
+#--------------------------------------------------------------------------------------------------------------------------------------
+
 class ImageArrayData(ImageData):
 
     def __init__(self, fileName=None, data=None, width=0, height=0):
@@ -62,6 +66,8 @@ class ImageArrayData(ImageData):
 
         self.imageMode = mode
         return
+
+#--------------------------------------------------------------------------------------------------------------------------------------
 
 class ImageFileData(ImageData):
 
