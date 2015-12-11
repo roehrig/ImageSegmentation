@@ -270,7 +270,7 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #Starts the algorithm, repeats it for each new segment
-def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, haltThreshold):
+def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, haltThreshold, numImages):
 
     #-------------------- First segment --------------------
     gui = shareGui.getGui()
@@ -286,14 +286,12 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     paths = definePath(cutNumber, image_dir)
 
     workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, None)
-    gui.advanceProgressBar(60)
 
     #-------------------- Subsequent segments --------------------
 
     #while there is still an ongoing branch (with a segment size above the halting threshold), continue segmentation on those branches
     while (numpy.sum(currentBranches) > 0):
 
-        gui.advanceProgressBar(60 + 2*cutNumber)
         imageNumber = 1
         cutNumber += 1
         #update path for output
@@ -315,7 +313,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #initiates the segmentation; makes directories, loads image data, builds weight matrix, etc.
-def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, haltThreshold):
+def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, haltThreshold, numImages):
 
     '''
     :param divideType = Set the type of dividing to be done.
@@ -352,7 +350,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
             if not os.path.isdir(segmentDir):
                 raise
 
-    gui.updateLog('--- Starting ---\n')
+    gui.updateLog('------------------------ Starting on image {} ------------------------\n'.format(imageFile))
     gui.updateLog('Creating segmentation directory at: %s' % segmentDir)
     gui.updateLog('Using base image located at: %s' % imagePath)
     gui.updateLog('Using divide type of %d' % divideType)
@@ -373,7 +371,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
 
     if allValid:
         #Setup
-        gui.advanceProgressBar(10)
+        gui.advanceProgressBar(10/numImages)
         imageData = data.GetImageData()
         imageSize = data.GetImageSize()
         dimensions = data.GetImageDimensions()
@@ -393,7 +391,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         gui.updateLog("Intensity variance = %f" % sigmaI)
         gui.updateLog("Location variance = %f" % sigmaX)
         #All of these lines change the graphic of the gui's progress bar
-        gui.advanceProgressBar(20)
+        gui.advanceProgressBar(10/numImages)
 
         #create weight matrix
         gui.updateLog("\n--- Creating weight matrix ---\n")
@@ -405,15 +403,14 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         weightMatrix.CreateMatrix(sigmaI, sigmaX)
         t2 = '%.2f' % (time.time() - t0)
         gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
-        gui.advanceProgressBar(50)
+        gui.advanceProgressBar(30/numImages)
 
         #Starts segmentation
-        gui.updateLog('\n--- Starting segmentation ---\n')
+        gui.updateLog('\n--- Starting segmentation---\n')
         t0 = time.time()
-        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, haltThreshold)
+        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, haltThreshold, numImages)
         t2 = '%.2f' % (time.time() - t0)
-        gui.advanceProgressBar(100)
-        gui.updateLog('\n\n--- Segmentation completed (took {} seconds). Click the results icon in the toolbar to view segments and plots. ---'.format(t2))
+        gui.updateLog('\n\n--- Segmentation completed (took {} seconds). Click the results icon in the toolbar to view segments and plots. ---\n\n'.format(t2))
 
         gui.setSegmentPath(segmentDir)
         gui.setRawData(list(imageData))

@@ -17,6 +17,7 @@ import plotframe
 import shareGui
 import finalize
 import output
+import pdb
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -34,13 +35,14 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.setGeometry(x, y, self.WIDTH, self.HEIGHT)
         self.setWindowTitle("XSD Image Segmentation")
         self.setWindowIcon(qt.QIcon('icon.png'))
-        self.type = 0
-        #type: 0=single image, 1=multi image
+
         self.isReset = True
-        self.imagePath = None
-        self.filename = None
+        self.imagePaths = []
         self.filenames = []
-        self.segmentPath = None
+        self.segmentPaths = []
+        self.segmentData = []
+        self.results = []
+        self.currentImg = 0
         self.divideType = 0
         self.maxPixelDist = 0
         self.smoothingIterations = 0
@@ -48,7 +50,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayLog = True
         self.displayPlts = False
         self.displayRawData = False
-        self.rawData = None
+        self.rawData = []
 
         self.frames()
         self.mainMenu()
@@ -132,20 +134,17 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.toolBar = self.addToolBar('Toolbar')
 
         #Creating actions
-        self.singleImageTool = qt.QAction(qt.QIcon('singleTool.png'), 'Import a single image for segmentation', self)
-        self.multiImageTool = qt.QAction(qt.QIcon('multiTool.png'), 'Import multiple images for segmentation', self)
+        self.imageTool = qt.QAction(qt.QIcon('singleTool.png'), 'Import images for segmentation', self)
         self.logTool = qt.QAction(qt.QIcon('logTool.png'), 'View activity log', self)
         self.resultsTool = qt.QAction(qt.QIcon('resultsTool.png'), 'View results panel', self)
 
         #Assigning actions
-        self.singleImageTool.triggered.connect(self.singleImageView)
-        self.multiImageTool.triggered.connect(self.multiImageView)
+        self.imageTool.triggered.connect(self.mainView)
         self.logTool.triggered.connect(self.logView)
         self.resultsTool.triggered.connect(self.resultsView)
 
         #Populating toolbar
-        self.toolBar.addAction(self.singleImageTool)
-        self.toolBar.addAction(self.multiImageTool)
+        self.toolBar.addAction(self.imageTool)
         self.toolBar.addAction(self.logTool)
         self.toolBar.addAction(self.resultsTool)
         return
@@ -174,10 +173,10 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #Creating components
         bottomFrame.setMaximumHeight(40)
-        self.mainTitle = qt.QLabel('Single Image Segmentation', self.mainFrame)
+        self.mainTitle = qt.QLabel('XSD Image Segmentation', self.mainFrame)
         self.mainTitle.setAlignment(QtCore.Qt.AlignCenter)
-        self.open = qt.QPushButton('Open file...', filesBox)
-        self.fileLabel = qt.QLabel('Filename: \n{}'.format(self.filename), filesBox)
+        self.open = qt.QPushButton('Open file(s)...', filesBox)
+        self.fileLabel = qt.QLabel('Filenames:', filesBox)
         self.fileScroll = qt.QScrollArea(filesBox)
         self.fileList = qt.QListWidget(self.fileScroll)
         self.divideTypePrompt = qt.QLabel('Divide Type:', paramsBox)
@@ -209,10 +208,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.mainTitle.setMaximumHeight(40)
         self.mainTitle.setFont(self.header)
         self.fileLabel.setFont(self.emphasis2)
-        self.fileLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.fileLabel.setAlignment(QtCore.Qt.AlignLeft)
         self.fileScroll.setWidgetResizable(True)
         self.fileScroll.setWidget(self.fileList)
-        self.fileScroll.hide()
         self.divideTypeCombo.addItems(['0','1','2'])
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
@@ -377,34 +375,11 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 #----------------------------------------TOOLBAR BUTTON FUNCTIONS----------------------------------------
 
-    def multiImageView(self):
+    def mainView(self):
 
-        #Adjusts the neccessary widgets when the main frame is switched to multi-image
+        #Brings the main frame back into view
         self.frameStack.setCurrentWidget(self.mainFrame)
-        self.type = 1
-        self.mainTitle.setText('Multiple Image Segmentation')
-        self.fileLabel.setText('Filenames:')
-        self.fileLabel.setAlignment(QtCore.Qt.AlignLeft)
-        self.open.setText('Open files...')
-        self.fileScroll.show()
         if(len(self.filenames) == 0):
-            self.fileLabel.setFont(self.emphasis2)
-        else:
-            self.fileLabel.setFont(self.emphasis1)
-        return
-
-
-    def singleImageView(self):
-
-        #Adjusts the neccessary widgets when the main frame is switched to single-image
-        self.frameStack.setCurrentWidget(self.mainFrame)
-        self.type = 0
-        self.mainTitle.setText('Single Image Segmentation')
-        self.fileLabel.setText('Filename: \n{}'.format(self.filename))
-        self.fileLabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.open.setText('Open file...')
-        self.fileScroll.hide()
-        if(self.filename == None):
             self.fileLabel.setFont(self.emphasis2)
         else:
             self.fileLabel.setFont(self.emphasis1)
@@ -430,11 +405,14 @@ class XSDImageSegmentation(qt.QMainWindow):
         #Resets everything in the gui to its initial state
         self.enableAll()
 
-        self.imagePath = None
         self.divideType = 0
         self.maxPixelDist = 0
-        self.filename = None
+        self.imagePaths = []
         self.filenames = []
+        self.segmentPaths = []
+        self.segmentData = []
+        self.results = []
+        self.currentImg = 0
         self.smoothingIterations = 0
         self.discretize = False
         self.displayLog = True
@@ -460,11 +438,6 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.fileList.clear()
         self.fileLabel.setFont(self.emphasis2)
         self.openSegmentDir.setDisabled(True)
-
-        if(self.type == 0):
-            self.fileLabel.setText('Filename: \n{}'.format(self.filename))
-        else:
-            self.fileLabel.setText('Filenames:')
 
         #This loop clears all images and plots from the results tabs
         layouts = [self.scatterLayout, self.histogramLayout, self.segmentsLayout]
@@ -508,41 +481,27 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.openImage()
             return
 
-        #open the image from file to be segmented
-        if(self.type == 0):
-            temp = str(qt.QFileDialog.getOpenFileName(self, 'Open Image'))
+        #open the images from file to be segmented
+        temp = qt.QFileDialog.getOpenFileNames(self, 'Open Image(s)')
 
-            if(temp != ''):
-                #This statement prevents a bug where the user hits 'cancel' on the file open window
-                #after already having opened one previously
-                self.imagePath = temp
-                self.filename = os.path.split(self.imagePath)[-1]
-                self.fileLabel.setText('Filename: \n{}'.format(self.filename))
-                self.fileLabel.setFont(self.emphasis1)
-        else:
-            temp = qt.QFileDialog.getOpenFileNames(self, 'Open Images')
-
-            if(temp != ''):
-                imagePaths= temp
-
-            for imagePath in imagePaths:
-                self.filenames.append(os.path.split(str(imagePath))[-1])
-            for file in self.filenames:
-                self.fileList.addItem(file)
-
-            self.imagePath = imagePaths[0]
-            self.fileLabel.setFont(self.emphasis1)
+        for file in temp:
+            if(str(file) != ''):
+                self.imagePaths.append(str(file))
+                self.filenames.append(os.path.split(str(file))[-1])
+                self.fileList.addItem(os.path.split(str(file))[-1])
         return
 
 
     def openSegmentDirectory(self):
         if platform.system() == "Windows":
-            os.startfile(self.segmentPath)
+            for path in self.segmentPaths:
+                os.startfile(path)
         elif platform.system() == "Linux":
-            subprocess.Popen(['xdg-open', self.segmentPath])
+            for path in self.segmentPaths:
+                subprocess.Popen(['xdg-open', path])
         else:
-            #OSX
-            os.system(['open "%s"' % self.segmentPath])
+            for path in self.segmentPaths:
+                os.system(['open "%s"' % path])
 
 
     def runSegmentation(self):
@@ -567,25 +526,27 @@ class XSDImageSegmentation(qt.QMainWindow):
                 #Autmatically switch to the activity log frame if "Display Log" is checked
                 self.logView()
 
-            if(self.type == 0):
-                #gui recieves a list of segmentation results as return, and stores it as 'segmentData'. Only the first entry in this list is used
-                #here in the gui, and the rest (the entire list) is then passed to output.finish() below
-                self.segmentData = segmentation.start(self.imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.haltThreshold)
-                self.branches = self.segmentData[0]
+            for i in range(len(self.imagePaths)):
+                self.currentImg = i
+                imagePath = self.imagePaths[self.currentImg]
 
-                if self.segmentPath == None:
-                    #In case something (probably discretizing) goes wrong
+                #gui recieves a list of segmentation results as return, and stores it as an entry in 'segmentData'
+                nextData = segmentation.start(imagePath, self.divideType, self.maxPixelDist, self.discretize, self.smoothingIterations, self.displayPlts, self.haltThreshold, len(self.imagePaths))
+                self.segmentData.append(nextData)
+                nextrResults = finalize.finish(self.segmentData[self.currentImg])
+                self.results.append(nextrResults)
+                self.makeSegmentMap()
+                output.toMAPS(nextrResults)
+                gui.advanceProgressBar((100-gui.progress.value())/len(self.imagePaths)) #if len(self.imaegPaths) = 1, this will set the progress bar to 100
+
+                if self.segmentPaths[self.currentImg] == None:
+                    #In case something goes wrong
                     self.resetAll()
                     self.frameStack.setCurrentWidget(self.mainFrame)
                     return
 
-            if(self.type == 1):
-                self.showMessage('Error', 'Not yet implemented', 'message')
-                self.resetAll()
-                self.enableAll()
-                self.frameStack.setCurrentWidget(self.mainFrame)
-                return
-
+            self.progress.setValue(100)
+            self.advanceProgressBar(0)
             if self.displayPlts:
                 self.resultTabs.setTabEnabled(1, True)
                 self.resultTabs.setTabEnabled(2, True)
@@ -593,20 +554,17 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.resultTabs.setTabEnabled(1, False)
                 self.resultTabs.setTabEnabled(2, False)
 
-
             if self.displayRawData:
-                self.rawDataDisplay.setPlainText(str(self.rawData))
+                raw = ''.join(self.rawData)
+                self.rawDataDisplay.setPlainText(raw)
                 self.resultTabs.setTabEnabled(3, True)
             else:
                 self.resultTabs.setTabEnabled(3, False)
 
-            #Nothing went wrong, display results, and run output functions
             self.isReset = False
             self.noResults.hide()
             self.openSegmentDir.setDisabled(False)
-            self.results = finalize.finish(self.segmentData)
-            self.makeSegmentMap()
-            output.toMAPS(self.results)
+
 
         return
 
@@ -659,17 +617,17 @@ class XSDImageSegmentation(qt.QMainWindow):
     def allValid(self):
 
         #Check for any potential errors before segmenting
-        if(self.imagePath == None):
-            self.showMessage('Error', 'No image selected', 'message')
+        if(len(self.imagePaths) == 0):
+            self.showMessage('Error', 'No images selected', 'message')
             return  False
         else:
             return True
 
 
     def advanceProgressBar(self, amount):
-        #changes the grpahic of the progress bar
-        self.progress.setValue(amount)
-        self.logProgress.setValue(amount)
+        #changes the grpahic of the progress bar by adding 'amount' percent
+        self.progress.setValue(self.progress.value()+amount)
+        self.logProgress.setValue(self.progress.value())
         if(self.progress.value() == 100):
             self.enableAll()
         app.processEvents()
@@ -748,8 +706,8 @@ class XSDImageSegmentation(qt.QMainWindow):
     #this function turns the map from output.mapBorders() into a color image
     def makeSegmentMap(self):
 
-        segmentDir, dimensions = self.segmentData[1], self.segmentData[3] #returned from segmentation.start()
-        map = self.results[2] #returned from finalize.finish()
+        segmentDir, dimensions = self.segmentData[self.currentImg][1], self.segmentData[self.currentImg][3] #returned from segmentation.start()
+        map = self.results[self.currentImg][2] #returned from finalize.finish()
         width = dimensions[0]
         height = dimensions[1]
         ratio = width/height
@@ -772,7 +730,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         #Creating pixel map of the saved map file and building a QtLabel to hold it
         mapLabel = qt.QLabel('Segmentation Map', self.segmentsFrame)
         mapLabel.setFont(self.emphasis1)
-        pixMap = qt.QPixmap(self.imagePath) #original image
+        pixMap = qt.QPixmap(self.imagePaths[self.currentImg]) #original image
         pixMapOverlay = qt.QPixmap(dest) #segmentation map
         imageHolder = qt.QLabel(self.segmentsFrame)
         imageHolder.setMinimumSize(450, 450/ratio)
@@ -785,22 +743,22 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #Adding components to reuslts window
         self.segmentsLayout.addWidget(mapLabel, 0, 0)
-        self.segmentsLayout.addWidget(imageHolder, 1, 0)
-        self.segmentsLayout.addWidget(mapHolder, 1, 0)
+        self.segmentsLayout.addWidget(imageHolder, self.currentImg, 0)
+        self.segmentsLayout.addWidget(mapHolder, self.currentImg, 0)
 
 
     def returnDiscretized(self, discretizedPath):
         #Sets the "original image" as the newly created discretized image, if checked
-        self.imagePath = discretizedPath
+        self.imagePaths[self.currentImg] = discretizedPath
 
 
     def setSegmentPath(self, path):
-        self.segmentPath = path
+        self.segmentPaths.append(path)
         return
 
 
     def setRawData(self, data):
-        self.rawData = data
+        self.rawData.append('Image {}: {}\n\n'.format(os.path.split(self.imagePaths[self.currentImg])[-1], data))
         return
 
 

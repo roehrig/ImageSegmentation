@@ -2,9 +2,8 @@ __author__ = 'hollowed'
 
 import numpy
 import os
-import pdb
-from PIL import Image
 import shareGui
+import shutil
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -13,9 +12,10 @@ def finish(segmentData):
 
     branches, segmentDir, image, dimensions = segmentData[0], segmentData[1], segmentData[2], segmentData[3]
 
-    finalSegments, finalData = getFinalSegments(branches, segmentDir)
+    finalSegments, finalData, finalPaths = getFinalSegments(branches, segmentDir)
     finalBackground = findBackground(finalData)
     finalMap = mapBorders(segmentDir, dimensions, finalSegments, finalBackground)
+    cleanup(segmentDir, finalPaths)
 
     results = [finalSegments, finalBackground, finalMap]
     return results
@@ -29,8 +29,9 @@ def getFinalSegments(branches, segmentDir):
 
     dirs = next(os.walk(segmentDir))[1]
     allPixelPaths = []
-    finalSegments = []
-    finalData = []
+    finalSegments = [] #each entry is a numpy array (segment) containing pixel indices
+    finalData = [] #each entry is a numpy array (segment) containing pixel values
+    finalPaths = [] #each entry is a path string to the pixel data of a final segment
 
     #Finding all pixel files
     for dir in dirs:
@@ -45,13 +46,14 @@ def getFinalSegments(branches, segmentDir):
     #checking to see which pixel files correspond to final-size segments
     for n in range(len(branches)):
         if(branches[n] == 0):
+            finalPaths.append(allPixelPaths[n])
             finalSegments.append((numpy.load(allPixelPaths[n]))['locations'])
             finalData.append((numpy.load(allPixelPaths[n]))['pixels'])
 
 
     print('Algorithm finished with {} final-size segments'.format(len(finalSegments))) #change to gui log
 
-    return finalSegments, finalData
+    return finalSegments, finalData, finalPaths
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -111,3 +113,33 @@ def mapBorders(segmentDir, dimensions, finalSegments, finalBackground):
 
     #we are now left with a map (2-D array with the original image dimensions) with a '0' for a foreground pixel, a '1' for a border pixel, and a '2' for a background pixel
     return map
+
+#--------------------------------------------------------------------------------------------------------------------------------------
+
+#gets rid of all uneeded directories created during segmentation
+#(currently, the pixel files are left alone for all final segments, in case they are needed, this could be changed later)
+def cleanup(segmentDir, finalPaths):
+
+    #create new directory to keep pixel info
+    storagePath = '{}/pixelData/'.format(segmentDir)
+
+    if not os.path.isdir(storagePath):
+        try:
+            os.makedirs(storagePath)
+        except OSError:
+            if not os.path.isdir(storagePath):
+                raise
+
+    #move pixel data of only final segments to the new directory
+    for n in range(len(finalPaths)):
+        path = finalPaths[n]
+        shutil.move(path, '{}pixels_segment_{}'.format(storagePath, n))
+
+    #remove everything else
+    dirs = next(os.walk(segmentDir))[1]
+    for dir in dirs:
+        if dir.find('pixelData') == -1:
+            shutil.rmtree('{}/{}'.format(segmentDir, dir))
+    return
+
+

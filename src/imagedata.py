@@ -5,6 +5,7 @@ from PIL import ImageFilter
 from pixel import *
 import shareGui
 import os
+import h5py
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -54,6 +55,7 @@ class ImageData():
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
+#using a data array for segmentation (HDF5)
 class ImageArrayData(ImageData):
 
     def __init__(self, fileName=None, data=None, width=0, height=0):
@@ -67,8 +69,12 @@ class ImageArrayData(ImageData):
         self.imageMode = mode
         return
 
-#--------------------------------------------------------------------------------------------------------------------------------------
+    def gatherData(self):
+        pass
 
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+#using an image file for segmentation (TIF, etc.)
 class ImageFileData(ImageData):
 
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
