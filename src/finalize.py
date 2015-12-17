@@ -8,12 +8,13 @@ import shutil
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #Runs all finishing processes
-def finish(segmentData):
+def finish(segmentData, maxVar, maxInt):
 
     branches, segmentDir, image, dimensions = segmentData[0], segmentData[1], segmentData[2], segmentData[3]
+    gui = shareGui.getGui()
 
     finalSegments, finalData, finalPaths = getFinalSegments(branches, segmentDir)
-    finalBackground = findBackground(finalData)
+    finalBackground = findBackground(finalData, maxVar, maxInt)
     finalMap = mapBorders(segmentDir, dimensions, finalSegments, finalBackground)
     cleanup(segmentDir, finalPaths)
 
@@ -51,24 +52,26 @@ def getFinalSegments(branches, segmentDir):
             finalData.append((numpy.load(allPixelPaths[n]))['pixels'])
 
 
-    print('Algorithm finished with {} final-size segments'.format(len(finalSegments))) #change to gui log
+    gui.updateLog('Algorithm finished with {} final-size segments'.format(len(finalSegments)))
 
     return finalSegments, finalData, finalPaths
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #flags segments as background or foreground
-def findBackground(finalData):
+def findBackground(finalData, maxVar, maxInt):
 
     gui = shareGui.getGui()
-    print('Checking for background segments') # change to gui log
+    gui.updateLog('\n\nFinding background segments background segments:')
+    gui.updateLog('Using variance threshold of {}'.format(maxVar))
+    gui.updateLog('Using intensity threshold of {}'.format(maxInt))
 
     background = numpy.zeros(len(finalData), dtype = int)
 
-    #if the current segment has a variance and mean intensity below both of the threshold values, it is set to '1' in teh background list,
+    #if the current segment has a variance and mean intensity below both of the threshold values, it is set to '1' in the background list,
     #indicating that the segment at that index is a background segment
     for n in range(len(finalData)):
-        if(numpy.var(finalData[n]) < 110 and numpy.mean(finalData[n]) < 16):
+        if(numpy.var(finalData[n]) < maxVar and numpy.mean(finalData[n]) < maxInt):
             background[n] = 1
 
     return background

@@ -175,7 +175,7 @@ class WeightMatrix(Matrix):
                 self.data[pixel[1]] = pixel[0]
 
         self.matrix = numpy.matrix(self.data.reshape(self.columns, self.rows), numpy.float64)
-        gui.updateLog('{}'.format(self.matrix.shape))
+        gui.updateLog('Weight Matrix shape: {}'.format(self.matrix.shape))
         return
 
     def ReduceMatrix(self, posIndices, negIndices):
@@ -240,8 +240,6 @@ class DiagonalMatrix(Matrix):
     def __init__(self, columns, rows):
 
         Matrix.__init__(self, columns, rows)
-        gui = shareGui.getGui()
-        gui.updateLog("D matrix size=%d" % self.data.shape)
 
         return
 
@@ -253,6 +251,6 @@ class DiagonalMatrix(Matrix):
         gui = shareGui.getGui()
         temp = numpy.diag(self.data)
         self.matrix = numpy.matrix(temp, numpy.float)
-        gui.updateLog('{}'.format(self.matrix.shape))
+        gui.updateLog('Diagonal Matrix shape: {}'.format(self.matrix.shape))
 
         return

@@ -2,7 +2,7 @@ __author__ = 'roehrig'
 
 import os
 from pixel import *
-from imagedata import ImageFileData
+from imagedata import ImageFileData, ImageArrayData
 from matrices import DiagonalMatrix as DM
 from matrices import WeightMatrix as WM
 from numpy import linalg as LA
@@ -17,28 +17,23 @@ import pdb
 #Creates the segmentation save destination
 def definePath(cutNumber, image_dir):
 
-    image_path = image_dir + "/cut_" + str(cutNumber)
     pixel_path = image_dir + "/pixels_" + str(cutNumber)
     matrix_path = image_dir + "/matrices_" + str(cutNumber)
 
-    prev_image_path = image_dir + "/cut_" + str(cutNumber - 1)
     prev_pixel_path = image_dir + "/pixels_" + str(cutNumber - 1)
     prev_matrix_path = image_dir + "/matrices_" + str(cutNumber - 1)
 
-    if not os.path.isdir(image_path):
+    if not os.path.isdir(pixel_path):
         try:
-            os.makedirs(image_path)
             os.makedirs(matrix_path)
             os.makedirs(pixel_path)
         except OSError:
-            if not os.path.isdir(image_path):
-                raise
             if not os.path.isdir(matrix_path):
                 raise
             if not os.path.isdir(pixel_path):
                 raise
 
-    paths = [image_path, pixel_path, matrix_path, prev_image_path, prev_pixel_path, prev_matrix_path]
+    paths = [pixel_path, matrix_path, prev_pixel_path, prev_matrix_path]
     return paths
 
 #--------------------------------------------------------------------------------------------------------------------------------------
@@ -93,11 +88,11 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #Preforms the algorithm
-def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, image):
+def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cutNumber, paths, imageNumber, image):
 
     gui = shareGui.getGui()
-    image_path, pixel_path, matrix_path = paths[0], paths[1], paths[2]
-    prev_image_path, prev_pixel_path, prev_matrix_path = paths[3], paths[4], paths[5]
+    pixel_path, matrix_path = paths[0], paths[1]
+    prev_pixel_path, prev_matrix_path = paths[2], paths[3]
     imageSize = data.GetImageSize()
     imageData = data.GetImageData()
     pixelLocations = numpy.arange(imageSize)
@@ -112,12 +107,7 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
         # Get the name of the file without the file extension.
         filename = os.path.splitext(image)[0]
 
-        gui.updateLog("\nWorking on file %s" % image)
-        # Create a new ImageFileData object and read in the image file.
-        newData = ImageFileData(prev_image_path + "/" + image)
-        newData.ReadImage()
-        dimensions = newData.GetImageDimensions()
-        gui.updateLog("Image width = %d, image height = %d" % dimensions)
+        gui.updateLog("\nWorking on %s" % image)
 
         # Load the image pixels and pixel locations into arrays
         newPixelsArrays = numpy.load(prev_pixel_path + "/" + filename + ".npz")
@@ -222,8 +212,8 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
         negIndices = segmentInfo['negIndices']
 
     #Progress output to gui.
-    gui.updateLog("Pixels in image one = %d" % len(posIndices))
-    gui.updateLog("Pixels in image two = %d" % len(negIndices))
+    gui.updateLog("Pixels in segment one = %d" % len(posIndices))
+    gui.updateLog("Pixels in segment two = %d" % len(negIndices))
     gui.updateLog("Matrix one size = %dx%d" % (matrixOne.GetMatrix().shape[0], matrixOne.GetMatrix().shape[1]))
     gui.updateLog("Matrix two size = %dx%d" % (matrixTwo.GetMatrix().shape[0], matrixTwo.GetMatrix().shape[1]))
 
@@ -238,10 +228,10 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
     filename = "/segment_%d_%d" % (cutNumber, imageNumber)
     # Save the pixel locations for each new pixel array.
     posLocations = numpy.take(pixelLocations, posIndices)
-    gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
-    data.WriteNewImage(segmentOne, '{}{}.{}'.format(image_path, filename, fileFormat))
+    gui.updateLog("Writing pixels file {}.npz".format(filename))
     posArrays = {'pixels':posPixels, 'locations':posLocations}
     numpy.savez(pixel_path + "/%s.npz" % filename, **posArrays)
+    gui.updateLog("Writing matrix file {}.npy".format(filename))
     numpy.save(matrix_path + "/%s.npy" % filename, matrixOne.GetMatrix())
 
     imageNumber += 1
@@ -249,10 +239,10 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
     #Segment Two-----------------------------------------------
     filename = "/segment_%d_%d" % (cutNumber, imageNumber)
     negLocations = numpy.take(pixelLocations, negIndices)
-    gui.updateLog("Writing image file {}.{}".format(filename, fileFormat))
-    data.WriteNewImage(segmentTwo, '{}{}.{}'.format(image_path, filename, fileFormat))
+    gui.updateLog("Writing pixels file {}.npz".format(filename))
     negArrays = {'pixels':negPixels, 'locations':negLocations}
     numpy.savez(pixel_path + "/%s.npz" % filename, **negArrays)
+    gui.updateLog("Writing matrix file {}.npy".format(filename))
     numpy.save(matrix_path + "/%s.npy" % filename, matrixTwo.GetMatrix())
 
 
@@ -270,10 +260,9 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displ
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #Starts the algorithm, repeats it for each new segment
-def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, displayPlots, haltThreshold, numImages):
+def SegmentImage (weightMatrix, data, image_dir, divideType, displayPlots, haltThreshold, numImages):
 
     #-------------------- First segment --------------------
-    gui = shareGui.getGui()
     cutNumber = 1
     imageNumber = 1
     #'branches' is a list of 1's and 0's, with a zero in the index of a branch-ending segment (a segment size that has reached
@@ -285,7 +274,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
     #define path for output
     paths = definePath(cutNumber, image_dir)
 
-    workSegment(haltThreshold, weightMatrix, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, None)
+    workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cutNumber, paths, imageNumber, None)
 
     #-------------------- Subsequent segments --------------------
 
@@ -301,8 +290,8 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
         i = 0
 
         # Iterate through the image files and weight matrix files of the previous cut
-        for image in os.listdir(paths[3]):
-            currentBranches[i] = workSegment(haltThreshold, None, data, divideType, fileFormat, displayPlots, cutNumber, paths, imageNumber, image)
+        for file in os.listdir(paths[2]):
+            currentBranches[i] = workSegment(haltThreshold, None, data, divideType, displayPlots, cutNumber, paths, imageNumber, file)
             imageNumber += 2
             i += 1
         #add contents of currentBranch to branches
@@ -313,7 +302,7 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, fileFormat, display
 #--------------------------------------------------------------------------------------------------------------------------------------
 
 #initiates the segmentation; makes directories, loads image data, builds weight matrix, etc.
-def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, displayPlots, haltThreshold, numImages):
+def start(imagePath, divideType, maxPixelDistance, smoothValue, displayPlots, haltThreshold, numImages):
 
     '''
     :param divideType = Set the type of dividing to be done.
@@ -321,7 +310,6 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         1 - divide the image using the median value of the eignevector
         2 - try vector.size / (log(vector.size))^2 evenly spaced dividing points
     :param maxPixelDistance = how close 2 pixels must be to have a nonzero weight between them
-    :param discretize = boolean whether or not to discretize
     :param smoothValue = iterations of smoothing (smoothing not called if smoothValue = 0)
     :param displayPlots = self explanatory boolean
     :param haltThreshold = this is the pixel size that will end the cutting of a segment
@@ -331,7 +319,7 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     gui = shareGui.getGui()
     allValid = True
     imageDir, imageFile = os.path.split(imagePath)
-    imageName = imageFile.split('.')[0]
+    imageName, extension = imageFile.split('.')
     #creates two directories titled as the current date > the original image name, to save all output
     segmentDir = '{}/{}_segmentation/{}'.format(imageDir, time.strftime("%m-%d-%Y"), imageName)
     dateDir = os.path.split(segmentDir)[0]
@@ -357,17 +345,17 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
     gui.updateLog('Using maximum pixel distance of %d' % maxPixelDistance)
     gui.updateLog('Using halting threshold of %d' % haltThreshold)
 
-    #loads selected image into imagedata object
-    data = ImageFileData(imagePath, segmentDir)
+    #loads selected image into imagedata object, depending on whether the user
+    # selected data is a numpy array file (user opened a hdf5), or a nromal image file
+    if extension == 'npz':
+        data = ImageArrayData(imagePath, segmentDir)
+    else:
+        data = ImageFileData(imagePath, segmentDir)
     gui.updateLog('\n--- Reading Image ---\n')
     data.ReadImage()
 
     if smoothValue > 0:
         data.SmoothImage(smoothValue)
-    if discretize == True:
-        #Discretizes the image, using 255 (white) as the maximum value
-        #If the image is not grayscale and cannot be discretized, the user can either continue (allValid = True), or abort (allValid = false)
-        allValid = data.DiscretizeImage(255, 0)
 
     if allValid:
         #Setup
@@ -384,8 +372,8 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
 
         #Output image properties
         gui.updateLog("Image mode is %s" % data.GetImageMode())
-        gui.updateLog("Image format is %s" % fileFormat)
-        gui.updateLog("Image channels are: {}".format(channels))
+        gui.updateLog("Data format is %s" % fileFormat)
+        gui.updateLog("Data channels are: {}".format(channels))
         gui.updateLog("Number of image pixels = %d" % imageSize)
         gui.updateLog("Image width = %d, image height = %d" % dimensions)
         gui.updateLog("Intensity variance = %f" % sigmaI)
@@ -408,9 +396,9 @@ def start(imagePath, divideType, maxPixelDistance, discretize, smoothValue, disp
         #Starts segmentation
         gui.updateLog('\n--- Starting segmentation---\n')
         t0 = time.time()
-        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, fileFormat, displayPlots, haltThreshold, numImages)
+        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, displayPlots, haltThreshold, numImages)
         t2 = '%.2f' % (time.time() - t0)
-        gui.updateLog('\n\n--- Segmentation completed (took {} seconds). Click the results icon in the toolbar to view segments and plots. ---\n\n'.format(t2))
+        gui.updateLog('\n\n--- Segmentation completed (took {} seconds) ---\n\n'.format(t2))
 
         gui.setSegmentPath(segmentDir)
         gui.setRawData(list(imageData))

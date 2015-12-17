@@ -2,6 +2,7 @@ __author__ = 'roehrig'
 
 import math
 import numpy
+import pdb
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -34,7 +35,6 @@ class Pixel():
 class PixelArray():
 
     def __init__(self, width, height, values):
-
         self.pixelList = []
 
         for i in range(height):

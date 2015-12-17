@@ -5,6 +5,7 @@ from PIL import ImageFilter
 from pixel import *
 import shareGui
 import os
+import numpy
 import h5py
 
 #--------------------------------------------------------------------------------------------------------------------------------------
@@ -58,19 +59,38 @@ class ImageData():
 #using a data array for segmentation (HDF5)
 class ImageArrayData(ImageData):
 
-    def __init__(self, fileName=None, data=None, width=0, height=0):
+    def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 
-        ImageData.__init__(fileName, data, width, height)
+        ImageData.__init__(self, fileName, segmentDir, data, width, height)
+        return
+
+    def ReadImage(self):
+
+        self.imagePath, self.imageFile = os.path.split(self.file)
+        self.dataImage = numpy.load(self.file)
+        self.data = self.dataImage['data']   #Intensity values per pixel; will return a tuple if image is multi-layer
+        self.width = self.dataImage['dimensions'][0]
+        self.height = self.dataImage['dimensions'][1]
+        self.size = len(self.data)
+        self.channels = self.dataImage['channels']
+        self.fileFormat = 'npz'
+        self.imageMode = 'N/A'
+        self.iteration = 1
+
+        # Create a list of Pixel objects (see pixel.py)
+        self.pixels = PixelArray(self.width, self.height, self.data)
 
         return
 
-    def SetImageMode(self, mode):
-
-        self.imageMode = mode
+    def WriteImage(self, fileName=None):
+        self.dataImage.save(fileName, self.fileFormat)
         return
 
-    def gatherData(self):
-        pass
+    def WriteNewImage(self, data, fileName):
+        dataImage = numpy.save('{}.npy'.format(fileName), data)
+        return
+
+
 
 #---------------------------------------------------------------------------------------------------------------------------------------
 
@@ -80,7 +100,6 @@ class ImageFileData(ImageData):
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 
         ImageData.__init__(self, fileName, segmentDir, data, width, height)
-
         return
 
     def ReadImage(self):
