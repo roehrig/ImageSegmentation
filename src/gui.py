@@ -48,10 +48,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         #^^^if the user originally opened an image file for segmentation, rather than an hdf5,
         #there will be no difference between the dataPath and imagePath for that index of each list
         self.hdfNum = 0 #current hdf being worked on (if multiple are selected for segmentation)
+        self.imageNum = 0 #same as above, with consideration to other images as well
         self.hdfs = [] #opened hdf file objects
         self.hdfPaths = [] #path strings to opened hdf files
         self.hdfNames = [] #strings of filenames minus the rest of the path
-        self.exchangeDirs = [] #strings of which exchange group is being used with the hdf file of teh corresponding list index
+        self.exchangeGroups = [] #strings of which exchange group is being used with the hdf file of teh corresponding list index
+        self.axisInfo = []
         self.segmentPaths = []
         self.segmentData = [] #list of data returned from the segmentation process
         self.results = [] #list of data returned from the finishing process
@@ -66,7 +68,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.rawData = [] #pixel data values
         self.customParams = []
         #default parameters dictionary, will update for every image, and a dict will be saved for each image for batch running
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+                              'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         self.lockDict = False #the above dictionary cannot be modified when this is true
         self.parameters = [] #will become a list (of length # of images to be segmented), where each entry is another list,
                               #storing the chosen segmentation parameters for the image with the corresponding index in self.dataPaths
@@ -172,7 +175,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.toolBar.addAction(self.resultsTool)
         return
 
-#----------------------------------------BUILDING ALL PAGES---------------------------------------
+#----------------------------------------BUILDING ALL WINDOW VIEWS ---------------------------------------
 
     def buildMainFrame(self):
 
@@ -207,7 +210,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.fileScroll = qt.QScrollArea(filesBox)
         self.fileList = qt.QListWidget(self.fileScroll)
         self.currentFileLabel = qt.QLabel('No file selected', self.paramsBox)
-        self.currentFileReady = qt.QLabel('Default settings', self.paramsBox)
+        self.fileSettingsLabel = qt.QLabel('Default settings', self.paramsBox)
         self.divideTypePrompt = qt.QLabel('Divide Type:', self.paramsBox)
         self.divideTypeCombo = qt.QComboBox(self.paramsBox)
         self.maxPixelDistPrompt = qt.QLabel('Maximum Pixel Distance:', self.paramsBox)
@@ -217,6 +220,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.smoothingIterationsSpin = qt.QSpinBox(self.paramsBox)
         self.haltThresholdPrompt = qt.QLabel('Halting Threshold:', self.paramsBox)
         self.haltThresholdSpin = qt.QSpinBox(self.paramsBox)
+        self.unitsCombo = qt.QComboBox(self.paramsBox)
+        self.pixelEqLabel = qt.QLabel('Easter Egg!', self.paramsBox)
         self.backgroundPrompt = qt.QLabel('Background detection:')
         self.bgVarianceLabel = qt.QLabel('Variance threshold:')
         self.bgVarianceSpin = qt.QSpinBox(self.paramsBox)
@@ -242,15 +247,15 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.saveParamsBtn1.clicked.connect(self.saveAllParams)
         self.saveParamsBtn2.clicked.connect(self.saveAllSubParams)
         self.fileList.itemClicked.connect(self.changeParamsApperance)
-        self.currentFileReady.setVisible(False)
         self.maxPixelDistSpin.setMinimum(2)
         self.smoothingIterationsSpin.setMinimum(0)
         self.mainTitle.setMaximumHeight(40)
         self.mainTitle.setFont(self.header)
         self.fileLabel.setFont(self.emphasis2)
         self.currentFileLabel.setFont(self.emphasis2)
-        self.currentFileReady.setFont(self.emphasis2)
-        self.currentFileReady.setPalette(self.red)
+        self.fileSettingsLabel.setFont(self.emphasis2)
+        self.fileSettingsLabel.setPalette(self.red)
+        self.pixelEqLabel.setText('')
         self.fileLabel.setAlignment(QtCore.Qt.AlignLeft)
         self.fileScroll.setWidgetResizable(True)
         self.fileScroll.setWidget(self.fileList)
@@ -261,6 +266,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.haltThresholdSpin.setMaximum(999999)
         self.bgVarianceSpin.setMaximum(999999)
         self.bgIntensitySpin.setMaximum(999999)
+        self.unitsCombo.addItems(['px', 'mm^2', 'um^2', 'nm^2'])
+        self.unitsCombo.setDisabled(True)
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logCheck.setChecked(True)
@@ -280,11 +287,14 @@ class XSDImageSegmentation(qt.QMainWindow):
         #save parameters on value change
         self.smoothCheck.toggled.connect(self.saveParams)
         self.haltThresholdSpin.valueChanged.connect(self.saveParams)
+        self.haltThresholdSpin.valueChanged.connect(self.updateUnits)
         self.smoothingIterationsSpin.valueChanged.connect(self.saveParams)
         self.divideTypeCombo.activated.connect(self.saveParams)
         self.maxPixelDistSpin.valueChanged.connect(self.saveParams)
         self.bgVarianceSpin.valueChanged.connect(self.saveParams)
         self.bgIntensitySpin.valueChanged.connect(self.saveParams)
+        self.unitsCombo.activated.connect(self.saveParams)
+        self.unitsCombo.activated.connect(self.updateUnits)
 
         #Packing components
         openButtonsLayout.addWidget(self.openImgButton)
@@ -298,16 +308,18 @@ class XSDImageSegmentation(qt.QMainWindow):
         paramsLayout.addWidget(self.maxPixelDistSpin, 1, 1)
         paramsLayout.addWidget(self.haltThresholdPrompt, 2, 0)
         paramsLayout.addWidget(self.haltThresholdSpin, 2, 1)
-        paramsLayout.addWidget(self.smoothCheck, 3, 0)
-        paramsLayout.addWidget(self.smoothingIterationsPrompt, 3, 1)
-        paramsLayout.addWidget(self.smoothingIterationsSpin, 4, 1)
-        paramsLayout.addWidget(self.backgroundPrompt, 5, 0)
-        paramsLayout.addWidget(self.bgVarianceLabel, 6, 0)
-        paramsLayout.addWidget(self.bgVarianceSpin, 6, 1)
-        paramsLayout.addWidget(self.bgIntensityLabel, 7, 0)
-        paramsLayout.addWidget(self.bgIntensitySpin, 7, 1)
+        paramsLayout.addWidget(self.unitsCombo, 2, 2)
+        paramsLayout.addWidget(self.pixelEqLabel, 3, 1)
+        paramsLayout.addWidget(self.smoothCheck, 4, 0)
+        paramsLayout.addWidget(self.smoothingIterationsPrompt, 4, 1)
+        paramsLayout.addWidget(self.smoothingIterationsSpin, 5, 1)
+        paramsLayout.addWidget(self.backgroundPrompt, 6, 0)
+        paramsLayout.addWidget(self.bgVarianceLabel, 7, 0)
+        paramsLayout.addWidget(self.bgVarianceSpin, 7, 1)
+        paramsLayout.addWidget(self.bgIntensityLabel, 8, 0)
+        paramsLayout.addWidget(self.bgIntensitySpin, 8, 1)
         paramsBoxLayout.addWidget(self.currentFileLabel)
-        paramsBoxLayout.addWidget(self.currentFileReady)
+        paramsBoxLayout.addWidget(self.fileSettingsLabel)
         paramsBoxLayout.addLayout(paramsLayout)
         paramsBoxLayout.addWidget(self.saveParamsBtn1)
         paramsBoxLayout.addWidget(self.saveParamsBtn2)
@@ -484,11 +496,13 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideType = 0
         self.maxPixelDist = 0
         self.hdfNum = 0
+        self.imageNum = 0
         self.dataPaths = []
         self.imagePaths = []
         self.hdfs = []
         self.hdfPaths = []
         self.hdfNames = []
+        self.axisInfo = []
         self.segmentPaths = []
         self.segmentData = []
         self.results = []
@@ -501,7 +515,8 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.resultTabs.setTabEnabled(2, False)
         self.resultTabs.setTabEnabled(3, False)
         self.paramsBox.setDisabled(True)
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'smoothingIterations': 0, 'haltThreshold':100}
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+                              'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         self.parameters = []
         self.customParams = []
 
@@ -514,15 +529,16 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.bgVarianceSpin.setValue(100)
         self.bgIntensitySpin.setValue(15)
 
-
-        self.currentFileReady.setVisible(False)
-        self.currentFileReady.setText('Default settings')
+        self. Text('Default settings')
         self.currentFileLabel.setText('No file selected')
+        self.unitsCombo.setCurrentIndex(0)
+        self.unitsCombo.setDisabled(True)
         self.logCheck.setChecked(True)
         self.plotsCheck.setChecked(False)
         self.rawDataCheck.setChecked(False)
         self.smoothingIterationsPrompt.setDisabled(True)
         self.smoothingIterationsSpin.setDisabled(True)
+        self.pixelEqLabel.setText('')
         self.progress.setValue(0)
         self.progress.setDisabled(True)
         self.logProgress.setValue(0)
@@ -530,7 +546,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.log.clear()
         self.fileList.clear()
         self.fileLabel.setFont(self.emphasis2)
-        self.currentFileReady.setPalette(self.red)
+        self.fileSettingsLabel.setPalette(self.red)
         self.openSegmentDir.setDisabled(True)
 
         #This loop clears all images and plots from the results tabs
@@ -585,7 +601,8 @@ class XSDImageSegmentation(qt.QMainWindow):
             return
 
         #open the images from file to be segmented
-        temp = qt.QFileDialog.getOpenFileNames(self, 'Open Image(s)', QtCore.QDir.currentPath())
+        temp = qt.QFileDialog.getOpenFileNames(self, 'Open Image(s)', QtCore.QDir.currentPath(),
+                                               filter="Images (*.png *.bmp *.jpg *.jpeg *.tiff)")
 
         for file in temp:
             if(str(file) != ''):
@@ -595,6 +612,8 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.toDefaultParams() #reset params to default to avoid copying last opened image settings (could be removed)
                 self.parameters.append(self.parameterDict.copy()) #add a default parameter dict to the list of image parameters
                 self.customParams.append(False) #Add a 'False' to customParams since this image is still setto the defaults
+                self.axisInfo.append(None) #No axis info for a non-hdf image
+                self.imageNum += 1
             else:
                 self.showMessage('Error', 'No files selected', 'warning')
 
@@ -615,7 +634,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             return
 
         #open the images from file to be segmented
-        temp = qt.QFileDialog.getOpenFileNames(self, 'Open Image(s)', QtCore.QDir.currentPath(), filter="h5 (*.h5)")
+        temp = qt.QFileDialog.getOpenFileNames(self, 'Open HDF5(s)', QtCore.QDir.currentPath(), filter="h5 (*.h5)")
 
         for file in temp:
             if(str(file) != ''):
@@ -624,7 +643,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             else:
                 self.showMessage('Error', 'No files selected', 'warning')
 
-        self.exchangeDirs = ['' for _ in range(len(self.hdfPaths))]
+        self.exchangeGroups = ['' for _ in range(len(self.hdfPaths))]
 
         #open each slected HDF5 with h5py, append each file to a list of files
         for file in self.hdfPaths:
@@ -633,7 +652,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #open the exchange popup for the first file in self.hdfs (opup to choose which exchnage directory to look for daat in)
         try:
-            self.exchangePopup = ExchangePopup(self.hdfs[self.hdfNum].keys(), self.hdfNames[self.hdfNum], self.hdfNum)
+            self.exchangePopup = ExchangePopup(self.hdfs[self.hdfNum], self.hdfNames[self.hdfNum], self.hdfNum)
             self.exchangePopup.show()
         except IndexError:
             #self.hdfs is empty
@@ -645,11 +664,9 @@ class XSDImageSegmentation(qt.QMainWindow):
     #this fucntion handles prompting the user for which HDF5 channels should be included in segmentation
     def selectChannels(self, exchange, n):
 
-        self.hdfNum += 1
-
         #just hide the exchange popup for now until we know user is not going to use it again
         self.exchangePopup.hide()
-        self.exchangeDirs[n] = exchange
+        self.exchangeGroups[n] = exchange
         dataStr = '{}/data'.format(exchange)
 
         #-------------------- check for XRF data in selected exchnage group --------------------
@@ -657,7 +674,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             data = self.hdfs[n][dataStr] #look for XRF data
             self.exchangePopup.close()
         except KeyError:
-            #group had no data key
+            #group had no 'data' key
             answer = self.showMessage('Error', 'This exchange group has no data. \nSelect new exchange? \n(Press no to remove this HDF file from the queue)', 'question')
             if answer == 0:
                 self.exchangePopup.show() #re-show popup so user can reselect exchange
@@ -672,7 +689,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 del self.hdfs[n]
                 try:
                     #open new popup for next hdf5
-                    self.exchangePopup = ExchangePopup(self.hdfs[n+1].keys(), self.hdfNames[n+1], n+1)
+                    self.exchangePopup = ExchangePopup(self.hdfs[n+1], self.hdfNames[n+1], n+1)
                     self.exchangePopup.show()
                     return
                 except IndexError:
@@ -724,28 +741,37 @@ class XSDImageSegmentation(qt.QMainWindow):
         # segmentation, adn also to image files for results display. Returned is the path the the numpy files(s), and path to the images file(s)
 
         if stack:
-            newData, newImages = convertdata.toStackedArray(self.hdfPaths[n], self.hdfs[n], self.exchangeDirs[n], selectedIndices, selectedChannels)
-            self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeDirs[n], selectedChannels))
+            self.axisInfo.append(self.getAxisInfo(n))
+            newData, newImages = convertdata.toStackedArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroups[n], selectedIndices, selectedChannels)
+            self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroups[n], selectedChannels))
             self.dataPaths.append(newData)
             self.imagePaths.append(newImages)
             self.toDefaultParams() #reset params to default to avoid copying last opened image settings (could be removed)
             self.parameters.append(self.parameterDict.copy()) #add a default parameter dict to the list of image parameters
+            if self.axisInfo[n] == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found' #Display this string if getAxisInfo returns None (and is an hdf5)
             self.customParams.append(False) #Add a 'False' to customParams since this image is still setto the defaults
+            self.hdfNum += 1
+            self.imageNum += 1
         else:
-            newData, newImages = convertdata.toArray(self.hdfPaths[n], self.hdfs[n], self.exchangeDirs[n], selectedIndices, selectedChannels)
+            axisInfo = self.getAxisInfo(n)
+            newData, newImages = convertdata.toArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroups[n], selectedIndices, selectedChannels)
             for channel in selectedChannels:
-                self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeDirs[n], channel))
+                self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroups[n], channel))
                 self.toDefaultParams()
                 self.parameters.append(self.parameterDict.copy())
+                self.axisInfo.append(axisInfo)
+                if axisInfo == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found'
                 self.customParams.append(False)
+                self.imageNum += 1
             self.dataPaths.extend(newData)
             self.imagePaths.extend(newImages)
+            self.hdfNum += 1
 
         self.hdfs[n].close()
 
         try:
             #open new popup for next hdf5
-            self.exchangePopup = ExchangePopup(self.hdfs[n+1].keys(), self.hdfNames[n+1], n+1)
+            self.exchangePopup = ExchangePopup(self.hdfs[n+1], self.hdfNames[n+1], n+1)
             self.exchangePopup.show()
         except IndexError:
             #in case there are no more hdf files to open a popup for (or only one hdf was initially selected)
@@ -754,48 +780,128 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    def changeParamsApperance(self):
+    #this function gets the units used for the axis of the current hdf file
+    def getAxisInfo(self, n):
+
+        #----------get units----------
+
+        hdf = self.hdfs[n]
+        key = self.exchangeGroups[n]
+        units = hdf[key]['x_axis'].attrs.get('units') #assumes this exchange group has an 'x_axis' dataset,
+                                                      #and that dataset has a 'units' attr in a format like ('units', 'mm')
+        if units == None:
+            return None
+
+        #scale to standard SI units (meters) for standarized conversion later
+        #add more 'if' statements here if some units are missing
+        if units == 'mm': siScaling = 10**-3
+        elif units == 'um' or units == 'microns': siScaling = 10**-6
+        elif units == 'nm': siScaling = 10**-9
+
+        #----------get pixel geometry----------
+        xAxis = hdf[key]['x_axis']
+        yAxis = hdf[key]['x_axis']
+        pixelWidth = abs(xAxis[0] - xAxis[1])*siScaling #in meters
+        pixelHeight = abs(yAxis[0] - yAxis[1])*siScaling #in meters
+        pixelArea = pixelWidth*pixelHeight
+
+        return {'units':units, 'pxWidth':pixelWidth, 'pxHeight':pixelHeight, 'pxArea':pixelArea}
+
+
+    def updateUnits(self):
 
         self.lockDict = True
+        index = self.fileList.selectedIndexes()[0]
+        index = index.row()
+
+        if self.unitsCombo.currentIndex() == 0:
+            pixelsEquivalent = None
+            text = self.parameters[index]['pixelStr']
+            if text != 'No unit data found': text = ''
+            self.pixelEqLabel.setText(text)
+            self.parameters[index]['pixelEq'] = None
+            return
+
+        if self.unitsCombo.currentIndex() == 1: #mm^2 in m^2
+            conversion = 10**6
+        if self.unitsCombo.currentIndex() == 2: #um^2 in m^2
+            conversion = 10**12
+        if self.unitsCombo.currentIndex() == 3: #nm^2 in m^2
+            conversion = 10**18
+
+        pixelsEquivalent = self.haltThresholdSpin.value() / (self.axisInfo[index]['pxArea'] * (conversion))
+        text = '= {} pixels'.format('%.2f'%pixelsEquivalent)
+        self.parameters[index]['pixelEq'] = int(round(pixelsEquivalent))
+        self.parameters[index]['pixelStr'] = text
+        self.pixelEqLabel.setText(text)
+        self.lockDict = False
+        return
+
+
+    def changeParamsApperance(self):
+
+        #this function modifies the apperance of the parameters frame to reflect the chosen parameters of the highlighted file at index i of the fileList,
+        #by loading the parameters from dictionary i in self.parameters
+
+        self.lockDict = True #changing values of the widgets below will result in several calls to saveParams(), which we don't want, because that function
+                             #should be reserved for when a USER changes the values, so we lock self.parameterDict from being modified during this
 
         self.paramsBox.setDisabled(False)
-        self.currentFileReady.setVisible(True)
 
         index = self.fileList.selectedIndexes()[0]
         name = self.fileList.itemFromIndex(index).text()
         index = index.row()
         self.currentFileLabel.setText(name)
+        this = self.parameters[index]
+
         if self.customParams[index] == True:
-            self.currentFileReady.setText('Custom settings')
-            self.currentFileReady.setPalette(self.blue)
+            self.fileSettingsLabel.setText('Custom settings')
+            self.fileSettingsLabel.setPalette(self.blue)
         else:
-            self.currentFileReady.setText('Default settings')
-            self.currentFileReady.setPalette(self.red)
+            self.fileSettingsLabel.setText('Default settings')
+            self.fileSettingsLabel.setPalette(self.red)
 
-        if self.parameters[index]['smoothingIterations'] != 0: self.smoothCheck.setChecked(True)
+        if this['smoothingIterations'] != 0: self.smoothCheck.setChecked(True)
         else: self.smoothCheck.setChecked(False)
-        self.divideTypeCombo.setCurrentIndex(self.parameters[index]['divideType'])
-        self.maxPixelDistSpin.setValue(self.parameters[index]['maxPixelDist'])
-        self.smoothingIterationsSpin.setValue(self.parameters[index]['smoothingIterations'])
-        self.haltThresholdSpin.setValue(self.parameters[index]['haltThreshold'])
-        self.bgVarianceSpin.setValue(self.parameters[index]['varThreshold'])
-        self.bgIntensitySpin.setValue(self.parameters[index]['intThreshold'])
+        self.divideTypeCombo.setCurrentIndex(this['divideType'])
+        self.maxPixelDistSpin.setValue(this['maxPixelDist'])
+        self.smoothingIterationsSpin.setValue(this['smoothingIterations'])
+        self.haltThresholdSpin.setValue(this['haltThreshold'])
+        self.bgVarianceSpin.setValue(this['varThreshold'])
+        self.bgIntensitySpin.setValue(this['intThreshold'])
+        self.unitsCombo.setCurrentIndex(this['units'])
+        self.updateUnits()
+        if this['pixelEq'] == None:
+            self.unitsCombo.setCurrentIndex(0)
+            self.unitsCombo.setDisabled(True)
 
+        if self.axisInfo[index] == None:
+            self.lockDict = False
+            return
+
+        self.unitsCombo.setDisabled(False)
         self.lockDict = False
+        return
 
 
     def saveParams(self):
 
+        #this is called every time any paramter is changed, and modifies the dictionary at at index i of the self.parameters list
+        #(when the file highlighted in the fileList is at index i of the list)
+
         if not self.lockDict:
+            index = self.fileList.selectedIndexes()[0].row()
             self.parameterDict['divideType'] = int(self.divideTypeCombo.currentText())
             self.parameterDict['maxPixelDist'] = self.maxPixelDistSpin.value()
             self.parameterDict['smoothingIterations'] = self.smoothingIterationsSpin.value()
             self.parameterDict['haltThreshold'] = self.haltThresholdSpin.value()
             self.parameterDict['varThreshold'] = self.bgVarianceSpin.value()
             self.parameterDict['intThreshold'] = self.bgIntensitySpin.value()
-            self.currentFileReady.setText('Custom')
-            self.currentFileReady.setPalette(self.blue)
-            index = self.fileList.selectedIndexes()[0].row()
+            self.parameterDict['units'] = self.unitsCombo.currentIndex()
+            self.parameterDict['pixelEq'] = self.parameters[index]['pixelEq']
+            self.parameterDict['pixelStr'] = self.parameters[index]['pixelStr']
+            self.fileSettingsLabel.setText('Custom settings')
+            self.fileSettingsLabel.setPalette(self.blue)
             self.parameters[index].update(self.parameterDict)
             self.customParams[index] = True
 
@@ -847,15 +953,18 @@ class XSDImageSegmentation(qt.QMainWindow):
                 #Autmatically switch to the activity log frame if "Display Log" is checked
                 self.logView()
 
+            #-------------------- START SEGMENTATION PROCESS -------------------
             t0 = time.time()
             for i in range(len(self.dataPaths)):
 
-                self.divideType = self.parameters[i]['divideType']
-                self.maxPixelDist = self.parameters[i]['maxPixelDist']
-                self.smoothingIterations = self.parameters[i]['smoothingIterations']
-                self.haltThreshold = self.parameters[i]['haltThreshold']
-                self.maxVar = self.parameters[i]['varThreshold']
-                self.maxInt = self.parameters[i]['intThreshold']
+                this = self.parameters[i] #current image
+                self.divideType = this['divideType']
+                self.maxPixelDist = this['maxPixelDist']
+                self.smoothingIterations = this['smoothingIterations']
+                if this['pixelEq']==None: self.haltThreshold = this['haltThreshold']
+                else: self.haltThreshold = this['pixelEq'] #if the user has selected other units, the halt threshold spin box in the gui
+                self.maxVar = this['varThreshold']    #is not displaying its value in pixels, so we cannot use it for segmentation,
+                self.maxInt = this['intThreshold']    #we need the number in pixels (which is pixelEq in the dict)
 
                 self.currentData = i
                 dataPath = self.dataPaths[i]
@@ -864,20 +973,17 @@ class XSDImageSegmentation(qt.QMainWindow):
                 #gui recieves a list of segmentation results as return, and stores it as an entry in 'segmentData'
                 nextData = segmentation.start(dataPath, self.divideType, self.maxPixelDist, self.smoothingIterations, self.displayPlts, self.haltThreshold, len(self.dataPaths))
                 self.segmentData.append(nextData)
-                nextResults = finalize.finish(self.segmentData[i], self.maxVar, self.maxInt)
+                nextResults = finalize.finish(self.segmentData[i], self.maxVar, self.maxInt) #find all final segments, find background
                 self.results.append(nextResults)
                 self.makeSegmentMap(imageName)
-                output.toMAPS(nextResults)
+                output.toMAPS(nextResults[0], nextResults[1], nextData[3], nextData[1]) #export to MAPS ROI's, pass segments, dimensions, and segmentDir
                 gui.advanceProgressBar((100-gui.progress.value())/len(self.dataPaths)) #if len(self.imaegPaths) = 1, this will set the progress bar to 100
-
-                if self.segmentPaths[i] == None:
-                    #In case something goes wrong (nothing is returned)
-                    self.resetAll()
-                    self.frameStack.setCurrentWidget(self.mainFrame)
-                    return
+                gui.updateLog('Done')
 
             t2 = '%.2f' % (time.time() - t0)
             self.showMessage('Done', 'All Images finished (took {} seconds).\n Click the results icon in the toolbar to view segmentation maps.'.format(t2), 'message')
+
+            #-------------------- FINISH SEGMENTATION PROCESS -------------------
 
             #Finishing stuff
             self.progress.setValue(100)
@@ -962,7 +1068,8 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def toDefaultParams(self):
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+                              'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         return
 
 
@@ -1125,21 +1232,30 @@ class XSDImageSegmentation(qt.QMainWindow):
 #insatnces of this class will be shown to the user upon selecting to open a HDF5 file
 #provides a list of all exchange groups within the hdf5 in use, and asks which one to look for datasets, calls selectChannels()
 class ExchangePopup(qt.QWidget):
-    def __init__(self, keys, name, n):
+    def __init__(self, hdf, name, n):
 
         qt.QWidget.__init__(self)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
         self.filename = name
         self.index = n
-        self.keys = keys
+        self.hdf = hdf
+        self.keys = self.hdf.keys()
         self.found = False
-        self.label = qt.QLabel('Choose Exchange from {}'.format(self.filename))
+        self.label = qt.QLabel('Choose exchange group from {}'.format(self.filename))
         self.okBtn = qt.QPushButton('Ok', self)
         self.cancelBtn = qt.QPushButton('Cancel', self)
         self.combo = qt.QComboBox(self)
+        self.combo.activated.connect(self.displayKeyInfo)
         self.setWindowTitle("Choose Exchange")
+        self.datasetsLabel = qt.QLabel('Datasets:')
+        self.datasetsLabel.setMaximumHeight(15)
+        self.attrsField = qt.QLabel('')
+        self.attrsField.setWordWrap(True)
         self.okBtn.clicked.connect(self.done)
         self.cancelBtn.clicked.connect(self.cancel)
+        emphasis = qt.QFont('Consolas', 10, qt.QFont.Bold)
+        self.label.setFont(emphasis)
+        self.datasetsLabel.setFont(emphasis)
         self.build()
         return
 
@@ -1147,8 +1263,14 @@ class ExchangePopup(qt.QWidget):
     def build(self):
 
         self.layout = qt.QVBoxLayout(self)
+        self.attrsFrame = qt.QFrame(self)
+        self.attrsLayout = qt.QVBoxLayout(self.attrsFrame)
         self.buttons = qt.QFrame(self)
         self.bottom = qt.QHBoxLayout(self.buttons)
+        self.attrsFrame.setFrameStyle(1)
+        self.attrsFrame.setLineWidth(0)
+        self.attrsFrame.setMidLineWidth(2)
+        #self.attrsFrame.setFixedSize(100,100)
 
         for key in self.keys:
             if key.find('exchange') != -1:
@@ -1159,13 +1281,27 @@ class ExchangePopup(qt.QWidget):
             self.combo.addItem(str)
             self.combo.setDisabled(True)
 
+        self.attrsLayout.addWidget(self.datasetsLabel)
+        self.attrsLayout.addWidget(self.attrsField)
         self.bottom.addWidget(self.okBtn)
         self.bottom.addWidget(self.cancelBtn)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.combo)
+        self.layout.addWidget(self.attrsFrame)
         self.layout.addWidget(self.buttons)
         self.move(qt.QApplication.desktop().screen().rect().center()- self.rect().center())
+        self.displayKeyInfo()
         return
+
+
+    def displayKeyInfo(self):
+        self.attrsField.clear()
+        currentKey = str(self.combo.currentText())
+        datasets = self.hdf[currentKey].keys()
+        dataString = ''
+        for set in datasets:
+            dataString += '    {}\n'.format(set)
+        self.attrsField.setText(dataString)
 
 
     def done(self):

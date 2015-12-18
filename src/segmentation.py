@@ -317,7 +317,6 @@ def start(imagePath, divideType, maxPixelDistance, smoothValue, displayPlots, ha
     '''
 
     gui = shareGui.getGui()
-    allValid = True
     imageDir, imageFile = os.path.split(imagePath)
     imageName, extension = imageFile.split('.')
     #creates two directories titled as the current date > the original image name, to save all output
@@ -340,7 +339,7 @@ def start(imagePath, divideType, maxPixelDistance, smoothValue, displayPlots, ha
 
     gui.updateLog('------------------------ Starting on image {} ------------------------\n'.format(imageFile))
     gui.updateLog('Creating segmentation directory at: %s' % segmentDir)
-    gui.updateLog('Using base image located at: %s' % imagePath)
+    gui.updateLog('Using image located at: %s' % imagePath)
     gui.updateLog('Using divide type of %d' % divideType)
     gui.updateLog('Using maximum pixel distance of %d' % maxPixelDistance)
     gui.updateLog('Using halting threshold of %d' % haltThreshold)
@@ -357,67 +356,51 @@ def start(imagePath, divideType, maxPixelDistance, smoothValue, displayPlots, ha
     if smoothValue > 0:
         data.SmoothImage(smoothValue)
 
-    if allValid:
-        #Setup
-        gui.advanceProgressBar(10/numImages)
-        imageData = data.GetImageData()
-        imageSize = data.GetImageSize()
-        dimensions = data.GetImageDimensions()
-        channels = data.GetChannels()
-        fileFormat = data.GetFileFormat()
-        # Create an array of pixel locations, location=sqrt(x^2 + y^2)
-        locationValues = data.pixels.CreateLocationArray()
-        sigmaI = numpy.var(imageData)
-        sigmaX = numpy.var(locationValues)
+    #Setup
+    gui.advanceProgressBar(10/numImages)
+    imageData = data.GetImageData()
+    imageSize = data.GetImageSize()
+    dimensions = data.GetImageDimensions()
+    channels = data.GetChannels()
+    fileFormat = data.GetFileFormat()
+    # Create an array of pixel locations, location=sqrt(x^2 + y^2)
+    locationValues = data.pixels.CreateLocationArray()
+    sigmaI = numpy.var(imageData)
+    sigmaX = numpy.var(locationValues)
 
-        #Output image properties
-        gui.updateLog("Image mode is %s" % data.GetImageMode())
-        gui.updateLog("Data format is %s" % fileFormat)
-        gui.updateLog("Data channels are: {}".format(channels))
-        gui.updateLog("Number of image pixels = %d" % imageSize)
-        gui.updateLog("Image width = %d, image height = %d" % dimensions)
-        gui.updateLog("Intensity variance = %f" % sigmaI)
-        gui.updateLog("Location variance = %f" % sigmaX)
-        #All of these lines change the graphic of the gui's progress bar
-        gui.advanceProgressBar(10/numImages)
+    #Output image properties
+    gui.updateLog("Image mode is %s" % data.GetImageMode())
+    gui.updateLog("Data format is %s" % fileFormat)
+    gui.updateLog("Data channels are: {}".format(channels))
+    gui.updateLog("Number of image pixels = %d" % imageSize)
+    gui.updateLog("Image width = %d, image height = %d" % dimensions)
+    gui.updateLog("Intensity variance = %f" % sigmaI)
+    gui.updateLog("Location variance = %f" % sigmaX)
+    #All of these lines change the graphic of the gui's progress bar
+    gui.advanceProgressBar(10/numImages)
 
-        #create weight matrix
-        gui.updateLog("\n--- Creating weight matrix ---\n")
-        weightMatrix = WM(data.size, data.size)
-        weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
+    #create weight matrix
+    gui.updateLog("\n--- Creating weight matrix ---\n")
+    weightMatrix = WM(data.size, data.size)
+    weightMatrix.SetPixelData(data.GetPixels(), maxPixelDistance)
 
-        #time weight matrix build
-        t0 = time.time()
-        weightMatrix.CreateMatrix(sigmaI, sigmaX)
-        t2 = '%.2f' % (time.time() - t0)
-        gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
-        gui.advanceProgressBar(30/numImages)
+    #time weight matrix build
+    t0 = time.time()
+    weightMatrix.CreateMatrix(sigmaI, sigmaX)
+    t2 = '%.2f' % (time.time() - t0)
+    gui.updateLog('Parallel building of weight matrix took {} seconds'.format(t2))
+    gui.advanceProgressBar(30/numImages)
 
-        #Starts segmentation
-        gui.updateLog('\n--- Starting segmentation---\n')
-        t0 = time.time()
-        branches = SegmentImage(weightMatrix, data, segmentDir, divideType, displayPlots, haltThreshold, numImages)
-        t2 = '%.2f' % (time.time() - t0)
-        gui.updateLog('\n\n--- Segmentation completed (took {} seconds) ---\n\n'.format(t2))
+    #Starts segmentation
+    gui.updateLog('\n--- Starting segmentation---\n')
+    t0 = time.time()
+    branches = SegmentImage(weightMatrix, data, segmentDir, divideType, displayPlots, haltThreshold, numImages)
+    t2 = '%.2f' % (time.time() - t0)
+    gui.updateLog('\n\n--- Segmentation completed (took {} seconds) ---\n\n'.format(t2))
 
-        gui.setSegmentPath(segmentDir)
-        gui.setRawData(list(imageData))
-        #This is the ultimate return back to the gui, a list of data resultant from the segmentation, for the gui to then pass to finalize.py and finalize
-        segmentData = [branches, segmentDir, data, dimensions]
-        return(segmentData)
+    gui.setSegmentPath(segmentDir)
+    gui.setRawData(list(imageData))
+    #This is the ultimate return back to the gui, a list of data resultant from the segmentation, for the gui to then pass to finalize.py and finalize
+    segmentData = [branches, segmentDir, data, dimensions]
+    return(segmentData)
 
-    else:
-        #If gui recieves None instead of segmentDir, it knows the segmentation was aborted
-        #In that case, epmty segmentation directory created above is deleted.
-        #If the current image segentation directory is the only directory in the date folder (current_date_segmentation/image.ext_dir)
-        # it deletes the entire directory, otherwise just deletes the current image segmentation direcctory
-
-        os.rmdir(segmentDir)
-        try:
-            os.rmdir(dateDir)
-        except OSError:
-            #meaning there are other image segmentations saved in the date directoy
-            pass
-
-        gui.setSegmentPath(None)
-        return

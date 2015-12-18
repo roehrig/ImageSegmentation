@@ -51,7 +51,7 @@ def getFinalSegments(branches, segmentDir):
             finalSegments.append((numpy.load(allPixelPaths[n]))['locations'])
             finalData.append((numpy.load(allPixelPaths[n]))['pixels'])
 
-
+    finalSegments = numpy.array(finalSegments)
     gui.updateLog('Algorithm finished with {} final-size segments'.format(len(finalSegments)))
 
     return finalSegments, finalData, finalPaths
@@ -62,7 +62,7 @@ def getFinalSegments(branches, segmentDir):
 def findBackground(finalData, maxVar, maxInt):
 
     gui = shareGui.getGui()
-    gui.updateLog('\n\nFinding background segments background segments:')
+    gui.updateLog('Finding background segments background segments:')
     gui.updateLog('Using variance threshold of {}'.format(maxVar))
     gui.updateLog('Using intensity threshold of {}'.format(maxInt))
 
