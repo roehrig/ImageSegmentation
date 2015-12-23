@@ -1,8 +1,8 @@
 __author__ = 'hollowed'
 
-'''
-This module is for easy sharing of the current gui object, so other classes and modules can modify gui widgets.
-'''
+
+#This module is for easy sharing of the current gui object, so other classes and modules can modify gui widgets.
+
 
 gui = None
 

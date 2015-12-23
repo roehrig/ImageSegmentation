@@ -10,6 +10,7 @@ import h5py
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
+
 class ImageData():
 
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
@@ -56,8 +57,10 @@ class ImageData():
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#using a data array for segmentation (HDF5)
+
 class ImageArrayData(ImageData):
+
+    #using a data array for segmentation (HDF5)
 
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 
@@ -91,11 +94,12 @@ class ImageArrayData(ImageData):
         return
 
 
-
 #---------------------------------------------------------------------------------------------------------------------------------------
 
-#using an image file for segmentation (TIF, etc.)
+
 class ImageFileData(ImageData):
+
+    #using an image file for segmentation (TIF, PNG, etc.)
 
     def __init__(self, fileName=None, segmentDir = None, data=None, width=0, height=0):
 

@@ -7,10 +7,14 @@ import shareGui
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-def unwrap_CreateMatrix(args):                                                #neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
+
+#neccessary function for process pool to work properly (target function of each child process cannot be inside of a class)
+def unwrap_CreateMatrix(args):
     return WeightMatrix.CreateMatrixPixelA(*args)
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
+
 
 class Matrix():
     '''
@@ -34,6 +38,7 @@ class Matrix():
 
         return
 
+
     def CreateMatrix(self):
 
         # Create the matrix.  Make sure that the data is in the correct shape first.
@@ -41,8 +46,10 @@ class Matrix():
 
         return
 
+
     def GetMatrix(self):
         return self.matrix
+
 
     def SetMatrix(self, newMatrix):
         self.matrix = newMatrix
@@ -50,28 +57,36 @@ class Matrix():
         self.data = numpy.ravel(newMatrix)
         return
 
+
     def GetNumColumns(self):
         return self.columns
+
 
     def GetNumRows(self):
         return self.rows
 
+
     def GetMatrixSize(self):
         return self.size
+
 
     def SetMatrixData(self, data):
         self.data = data
         return
 
+
     # This function returns a flattened array
     def GetMatrixDataArray(self):
         return self.data
+
 
     def SaveToFile(self, path):
         numpy.save(path, self.matrix)
         return
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
+
 
 class WeightMatrix(Matrix):
     '''
@@ -89,10 +104,12 @@ class WeightMatrix(Matrix):
         Matrix.__init__(self, columns, rows)
         return
 
+
     def SetMaxPixelDistance(self, newDistance=1):
 
         self.distance = newDistance
         return
+
 
     def SetPixelData(self, data, maxDistance=1):
 
@@ -101,6 +118,7 @@ class WeightMatrix(Matrix):
         self.numPixels = data.GetPixelArraySize()
 
         return
+
 
     def CalcLocationVectorNorm(self, pixelA, pixelB):
 
@@ -111,6 +129,7 @@ class WeightMatrix(Matrix):
 
         return norm
 
+
     def CalcPixelScalarNorm(self, pixelA, pixelB):
 
         valueA = pixelA.GetValue()
@@ -119,6 +138,7 @@ class WeightMatrix(Matrix):
         norm = math.sqrt((valueA - valueB) * (valueA - valueB))
 
         return norm
+
 
     def CalcPixelVectorNorm(self, pixelA, pixelB):
 
@@ -178,6 +198,7 @@ class WeightMatrix(Matrix):
         gui.updateLog('Weight Matrix shape: {}'.format(self.matrix.shape))
         return
 
+
     def ReduceMatrix(self, posIndices, negIndices):
         '''
         This function divides weight matrix into two parts, one for each segment
@@ -229,7 +250,9 @@ class WeightMatrix(Matrix):
 #        return (edgeSum, posMatrix, negMatrix)
         return (cutsize, posMatrix, negMatrix)
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
+
 
 class DiagonalMatrix(Matrix):
     '''

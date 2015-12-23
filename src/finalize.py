@@ -7,8 +7,11 @@ import shutil
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
+
 #Runs all finishing processes
 def finish(segmentData, maxVar, maxInt):
+
+    #finish up the segmentation, return are necessary final data
 
     branches, segmentDir, image, dimensions = segmentData[0], segmentData[1], segmentData[2], segmentData[3]
     gui = shareGui.getGui()
@@ -21,10 +24,13 @@ def finish(segmentData, maxVar, maxInt):
     results = [finalSegments, finalBackground, finalMap]
     return results
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#Goes through all pixel data from the segmentation and specifies which files correspond to final-size segments
+
 def getFinalSegments(branches, segmentDir):
+
+    #Goes through all pixel data from the segmentation and specifies which files correspond to final-size segments
 
     gui = shareGui.getGui()
 
@@ -56,10 +62,13 @@ def getFinalSegments(branches, segmentDir):
 
     return finalSegments, finalData, finalPaths
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#flags segments as background or foreground
+
 def findBackground(finalData, maxVar, maxInt):
+
+    #flags segments as background or foreground (this will need some work, is farily simple at the moment)
 
     gui = shareGui.getGui()
     gui.updateLog('Finding background segments background segments:')
@@ -76,10 +85,13 @@ def findBackground(finalData, maxVar, maxInt):
 
     return background
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#calculates a border map of all final segments
+
 def mapBorders(segmentDir, dimensions, finalSegments, finalBackground):
+
+    #calculates a border map of all final segments
 
     width = dimensions[0]
     height = dimensions[1]
@@ -117,11 +129,14 @@ def mapBorders(segmentDir, dimensions, finalSegments, finalBackground):
     #we are now left with a map (2-D array with the original image dimensions) with a '0' for a foreground pixel, a '1' for a border pixel, and a '2' for a background pixel
     return map
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#gets rid of all uneeded directories created during segmentation
-#(currently, the pixel files are left alone for all final segments, in case they are needed, this could be changed later)
+
 def cleanup(segmentDir, finalPaths):
+
+    #gets rid of all uneeded directories created during segmentation
+    #(currently, the pixel files are left alone for all final segments, in case they are needed, this could be changed later)
 
     #create new directory to keep pixel info
     storagePath = '{}/pixelData/'.format(segmentDir)

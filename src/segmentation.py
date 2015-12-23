@@ -14,8 +14,10 @@ import pdb
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#Creates the segmentation save destination
+
 def definePath(cutNumber, image_dir):
+
+    #Creates the segmentation save destination
 
     pixel_path = image_dir + "/pixels_" + str(cutNumber)
     matrix_path = image_dir + "/matrices_" + str(cutNumber)
@@ -36,10 +38,13 @@ def definePath(cutNumber, image_dir):
     paths = [pixel_path, matrix_path, prev_pixel_path, prev_matrix_path]
     return paths
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#subtracts the weight matrix from the diagonal weight matrix, solves for eigenvectors, and returns the second eigenvector
+
 def solveEigenVectors(diag, weight):
+
+    #subtracts the weight matrix from the diagonal weight matrix, solves for eigenvectors, and returns the second eigenvector
 
     finalMatrix = numpy.subtract(diag, weight)
     eigenValues, eigenVectors = LA.eig(finalMatrix)
@@ -49,10 +54,13 @@ def solveEigenVectors(diag, weight):
 
     return (secondVec)
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#Calculates each normalized cut
+
 def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingValue):
+
+    #Calculates each normalized cut
 
     #uses tuple as type to support multi-layered images
     segmentOne = numpy.zeros(imageSize, dtype = tuple)
@@ -87,8 +95,10 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#Preforms the algorithm
+
 def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cutNumber, paths, imageNumber, image):
+
+    #Preforms the algorithm
 
     gui = shareGui.getGui()
     pixel_path, matrix_path = paths[0], paths[1]
@@ -257,10 +267,13 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cut
     #return value of '1' means the segmentation is still going on this branch (the current working segment will be segmented again)
     return(1)
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#Starts the algorithm, repeats it for each new segment
+
 def SegmentImage (weightMatrix, data, image_dir, divideType, displayPlots, haltThreshold, numImages):
+
+    #Starts the algorithm, repeats it for each new segment
 
     #-------------------- First segment --------------------
     cutNumber = 1
@@ -299,10 +312,13 @@ def SegmentImage (weightMatrix, data, image_dir, divideType, displayPlots, haltT
 
     return(branches)
 
+
 #--------------------------------------------------------------------------------------------------------------------------------------
 
-#initiates the segmentation; makes directories, loads image data, builds weight matrix, etc.
+
 def start(imagePath, divideType, maxPixelDistance, smoothValue, displayPlots, haltThreshold, numImages):
+
+    #initiates the segmentation; makes directories, loads image data, builds weight matrix, etc.
 
     '''
     :param divideType = Set the type of dividing to be done.

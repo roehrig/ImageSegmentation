@@ -1,12 +1,13 @@
 __author__ = 'hollowed'
 
+#standard
 import sys
 import os
 import subprocess
 import platform
 import time
-import pdb
 
+#anaconda
 from PIL import Image
 from PyQt4 import QtGui as qt, QtCore
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -14,12 +15,16 @@ from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavBar
 import numpy
 import h5py
 
+#here
 import segmentation
 import plotframe
 import shareGui
 import finalize
 import output
 import convertdata
+
+#Hello, future developers! The main process for the program is located here. Most functions (in all modules) contain a breif description as the first line under their defenition,
+#and explanatory comments throughout.
 
 #--------------------------------------------------------------------------------------------------------------------------------------
 
@@ -47,12 +52,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.imagePaths = [] #paths to images used for results display only
         #^^^if the user originally opened an image file for segmentation, rather than an hdf5,
         #there will be no difference between the dataPath and imagePath for that index of each list
-        self.hdfNum = 0 #current hdf being worked on (if multiple are selected for segmentation)
+        self.hdfIndex = 0 #current hdf being worked on (if multiple are selected for segmentation)
         self.imageNum = 0 #same as above, with consideration to other images as well
         self.hdfs = [] #opened hdf file objects
         self.hdfPaths = [] #path strings to opened hdf files
         self.hdfNames = [] #strings of filenames minus the rest of the path
-        self.exchangeGroups = [] #strings of which exchange group is being used with the hdf file of teh corresponding list index
+        self.exchangeGroup = None #string of which exchange group is being used with the current hdf file (or batch of hdf files)
         self.axisInfo = []
         self.segmentPaths = []
         self.segmentData = [] #list of data returned from the segmentation process
@@ -66,9 +71,10 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.displayPlts = False
         self.displayRawData = False
         self.rawData = [] #pixel data values
-        self.customParams = []
-        #default parameters dictionary, will update for every image, and a dict will be saved for each image for batch running
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+        self.customParams = [] #array of boolean indicating whether or not the image at that index is still on the default parameters
+        #below - self.parameterDict is a temporary dict that will change often, and is just used to gather info from the gui before
+        #"saving" it at a specific index of self.paramters. After this is done, self.parameterDict can safely be changed elsewhere
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':'',
                               'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         self.lockDict = False #the above dictionary cannot be modified when this is true
         self.parameters = [] #will become a list (of length # of images to be segmented), where each entry is another list,
@@ -179,7 +185,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def buildMainFrame(self):
 
-        #This frame displays the main UI, where images are uploaded, and parameters set
+        #This frame displays the main UI, where images are imported, and parameters set
 
         #Creating frames/layouts to hold components
         centerFrame = qt.QFrame(self.mainFrame)
@@ -486,16 +492,17 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def resetAll(self):
 
-        self.lockDict = True
-
         #Resets everything in the gui to its initial state
+
+        self.lockDict = True #prevent changes made below from calling saveParams()
+
         self.enableAll()
         self.exchangePopup = None
         self.channelsPopup= None
 
         self.divideType = 0
         self.maxPixelDist = 0
-        self.hdfNum = 0
+        self.hdfIndex = 0
         self.imageNum = 0
         self.dataPaths = []
         self.imagePaths = []
@@ -503,6 +510,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.hdfPaths = []
         self.hdfNames = []
         self.axisInfo = []
+        self.exchangeGroup = None
         self.segmentPaths = []
         self.segmentData = []
         self.results = []
@@ -515,7 +523,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.resultTabs.setTabEnabled(2, False)
         self.resultTabs.setTabEnabled(3, False)
         self.paramsBox.setDisabled(True)
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':'',
                               'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         self.parameters = []
         self.customParams = []
@@ -529,7 +537,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.bgVarianceSpin.setValue(100)
         self.bgIntensitySpin.setValue(15)
 
-        self. Text('Default settings')
+        self.fileSettingsLabel.setText('Default settings')
         self.currentFileLabel.setText('No file selected')
         self.unitsCombo.setCurrentIndex(0)
         self.unitsCombo.setDisabled(True)
@@ -592,6 +600,8 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def openImage(self):
 
+        #this function opens image files
+
         if(self.isReset == False):
             answer = self.showMessage('Error', 'Window must be reset before segmenting again.\nReset Now?', 'question')
             if answer == 0:
@@ -620,11 +630,14 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    #written in refernce to SimpleView2.py - Hong
-    #this function imports HDF5 files
     def openHDF5(self):
 
+        #written in refernce to SimpleView2.py - Hong
+        #this function imports HDF5 files
+
         self.hdfs = []
+        self.hdfIndex = 0
+
         if(self.isReset == False):
             answer = self.showMessage('Error', 'Window must be reset before segmenting again.\nReset Now?', 'question')
             if answer == 0:
@@ -643,7 +656,8 @@ class XSDImageSegmentation(qt.QMainWindow):
             else:
                 self.showMessage('Error', 'No files selected', 'warning')
 
-        self.exchangeGroups = ['' for _ in range(len(self.hdfPaths))]
+        self.exchangeGroup = None
+        self.invalidFiles = []
 
         #open each slected HDF5 with h5py, append each file to a list of files
         for file in self.hdfPaths:
@@ -652,7 +666,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #open the exchange popup for the first file in self.hdfs (opup to choose which exchnage directory to look for daat in)
         try:
-            self.exchangePopup = ExchangePopup(self.hdfs[self.hdfNum], self.hdfNames[self.hdfNum], self.hdfNum)
+            self.exchangePopup = ExchangePopup(self.hdfs[0], self.hdfNames[0], len(self.hdfs))
             self.exchangePopup.show()
         except IndexError:
             #self.hdfs is empty
@@ -660,14 +674,16 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    #written in refernce to SimpleView2.py - Hong
-    #this fucntion handles prompting the user for which HDF5 channels should be included in segmentation
-    def selectChannels(self, exchange, n):
+    def selectChannels(self, exchange):
+
+        #written in refernce to SimpleView2.py - Hong
+        #this fucntion handles prompting the user for which HDF5 channels should be included in segmentation
 
         #just hide the exchange popup for now until we know user is not going to use it again
         self.exchangePopup.hide()
-        self.exchangeGroups[n] = exchange
+        self.exchangeGroup = exchange
         dataStr = '{}/data'.format(exchange)
+        n = self.hdfIndex
 
         #-------------------- check for XRF data in selected exchnage group --------------------
         try:
@@ -689,7 +705,8 @@ class XSDImageSegmentation(qt.QMainWindow):
                 del self.hdfs[n]
                 try:
                     #open new popup for next hdf5
-                    self.exchangePopup = ExchangePopup(self.hdfs[n+1], self.hdfNames[n+1], n+1)
+                    self.exchangePopup = ExchangePopup(self.hdfs[n+1], self.hdfNames[n+1], len(self.hdfs))
+                    self.hdfIndex += 1
                     self.exchangePopup.show()
                     return
                 except IndexError:
@@ -717,7 +734,8 @@ class XSDImageSegmentation(qt.QMainWindow):
                 del self.hdfNames[n]
                 del self.hdfs[n]
                 try:
-                    self.exchangePopup = ExchangePopup(self.hdfs[n+1].keys(), self.hdfNames[n+1], n+1)
+                    self.exchangePopup = ExchangePopup(self.hdfs[n+1].keys(), self.hdfNames[n+1], len(self.hdfs))
+                    self.hdfIndex += 1
                     self.exchangePopup.show()
                     return
                 except IndexError:
@@ -725,13 +743,14 @@ class XSDImageSegmentation(qt.QMainWindow):
             return
 
         #spawn a chanels popup, for the user to choose channels to include in segmentation
-        self.channelsPopup = ChannelsPopup(self.hdfNames[n], channels, n)
+        self.channelsPopup = ChannelsPopup(channels)
         self.channelsPopup.show()
         return
 
 
-    #this function prints the selected files and channels to the gui, and calls convertdata
-    def setChannels(self, selectedChannels, selectedIndices, stack, n):
+    def setChannels(self, selectedChannels, selectedIndices, stack):
+
+        #this function prints the selected files and channels to the gui, and calls convertdata
 
         self.channelsPopup.close()
 
@@ -740,55 +759,59 @@ class XSDImageSegmentation(qt.QMainWindow):
         #dataset. Otherwise, each channel is treated as a seperate image. All resultant data arrays are saved to numpy files for
         # segmentation, adn also to image files for results display. Returned is the path the the numpy files(s), and path to the images file(s)
 
-        if stack:
-            self.axisInfo.append(self.getAxisInfo(n))
-            newData, newImages = convertdata.toStackedArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroups[n], selectedIndices, selectedChannels)
-            self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroups[n], selectedChannels))
-            self.dataPaths.append(newData)
-            self.imagePaths.append(newImages)
-            self.toDefaultParams() #reset params to default to avoid copying last opened image settings (could be removed)
-            self.parameters.append(self.parameterDict.copy()) #add a default parameter dict to the list of image parameters
-            if self.axisInfo[n] == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found' #Display this string if getAxisInfo returns None (and is an hdf5)
-            self.customParams.append(False) #Add a 'False' to customParams since this image is still setto the defaults
-            self.hdfNum += 1
-            self.imageNum += 1
-        else:
-            axisInfo = self.getAxisInfo(n)
-            newData, newImages = convertdata.toArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroups[n], selectedIndices, selectedChannels)
-            for channel in selectedChannels:
-                self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroups[n], channel))
-                self.toDefaultParams()
-                self.parameters.append(self.parameterDict.copy())
-                self.axisInfo.append(axisInfo)
-                if axisInfo == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found'
-                self.customParams.append(False)
-                self.imageNum += 1
-            self.dataPaths.extend(newData)
-            self.imagePaths.extend(newImages)
-            self.hdfNum += 1
+        for n in range(len(self.hdfs)):
+            try:
+                if stack:
+                    self.axisInfo.append(self.getAxisInfo(n)) #find info on units and real pixel size
+                    newData, newImages = convertdata.toStackedArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroup, selectedIndices, selectedChannels)
+                    self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroup, selectedChannels))
+                    self.dataPaths.append(newData)
+                    self.imagePaths.append(newImages)
+                    self.toDefaultParams() #reset params to default to avoid copying last opened image settings (could be removed)
+                    self.parameters.append(self.parameterDict.copy()) #add a default parameter dict to the list of image parameters
+                    if self.axisInfo[n] == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found' #Display this string if getAxisInfo returns None (and is an hdf5)
+                    self.customParams.append(False) #Add a 'False' to customParams since this image is still setto the defaults
+                    self.hdfIndex += 1
+                    self.imageNum += 1
+                else:
+                    axisInfo = self.getAxisInfo(n)
+                    newData, newImages = convertdata.toArray(self.hdfPaths[n], self.hdfs[n], self.exchangeGroup, selectedIndices, selectedChannels)
+                    for channel in selectedChannels:
+                        self.fileList.addItem('{} - {} - ({})'.format(self.hdfNames[n], self.exchangeGroup, channel))
+                        self.toDefaultParams()
+                        self.parameters.append(self.parameterDict.copy())
+                        self.axisInfo.append(axisInfo)
+                        if axisInfo == None: self.parameters[self.imageNum]['pixelStr'] = 'No unit data found'
+                        self.customParams.append(False)
+                        self.imageNum += 1
+                    self.dataPaths.extend(newData)
+                    self.imagePaths.extend(newImages)
+                    self.hdfIndex += 1
 
-        self.hdfs[n].close()
+                self.hdfs[n].close()
+            except KeyError, ValueError:
+                self.invalidFiles.append(n)
 
-        try:
-            #open new popup for next hdf5
-            self.exchangePopup = ExchangePopup(self.hdfs[n+1], self.hdfNames[n+1], n+1)
-            self.exchangePopup.show()
-        except IndexError:
-            #in case there are no more hdf files to open a popup for (or only one hdf was initially selected)
+        if len(self.invalidFiles) == 0:
             return
 
+        names = ''
+        for index in self.invalidFiles:
+            names = '{}{}\n'.format(names, self.hdfNames[index])
+        self.showMessage('Errors', 'The following files raised errors with the chosen exchange/channel settings and were removed from the queue:\n\n{}'.format(names), 'message')
         return
 
 
-    #this function gets the units used for the axis of the current hdf file
     def getAxisInfo(self, n):
+
+        #this function gets the units used for the axis of the current hdf file
 
         #----------get units----------
 
         hdf = self.hdfs[n]
-        key = self.exchangeGroups[n]
-        units = hdf[key]['x_axis'].attrs.get('units') #assumes this exchange group has an 'x_axis' dataset,
-                                                      #and that dataset has a 'units' attr in a format like ('units', 'mm')
+        key = self.exchangeGroup
+        try: units = hdf[key]['x_axis'].attrs.get('units') #assumes this exchange group has an 'x_axis' dataset,
+        except KeyError, ValueError: return None           #and that dataset has a 'units' attribute in a format like ('units', 'mm')
         if units == None:
             return None
 
@@ -801,41 +824,76 @@ class XSDImageSegmentation(qt.QMainWindow):
         #----------get pixel geometry----------
         xAxis = hdf[key]['x_axis']
         yAxis = hdf[key]['x_axis']
-        pixelWidth = abs(xAxis[0] - xAxis[1])*siScaling #in meters
+        pixelWidth = abs(xAxis[0] - xAxis[1])*siScaling #in meters (assumes that the dimensions of every pixel are the same)
         pixelHeight = abs(yAxis[0] - yAxis[1])*siScaling #in meters
-        pixelArea = pixelWidth*pixelHeight
+        pixelArea = pixelWidth*pixelHeight #in meters
 
         return {'units':units, 'pxWidth':pixelWidth, 'pxHeight':pixelHeight, 'pxArea':pixelArea}
 
 
     def updateUnits(self):
 
-        self.lockDict = True
-        index = self.fileList.selectedIndexes()[0]
-        index = index.row()
+        #change the apperance of the gui to refelct unit changes, and calculate the pixel equivalent
+        #of the selecetd unit
 
-        if self.unitsCombo.currentIndex() == 0:
-            pixelsEquivalent = None
-            text = self.parameters[index]['pixelStr']
-            if text != 'No unit data found': text = ''
+        if not self.lockDict:
+            self.lockDict = True
+            index = self.fileList.selectedIndexes()[0] #current selected item in gui
+            index = index.row()
+
+            #update to units of pixels, so get rid of pixel equivalent string, or restore it to 'No unit data found'
+            #and set 'PixelEq' to None, which is the check in runSegmentation() on whetehr to use the 'haltThresholdSpin'
+            #value or the 'pixelEq' value for the halting threshold in the segmentation
+            if self.unitsCombo.currentIndex() == 0:
+                text = self.parameters[index]['pixelStr']
+                if text != 'No unit data found': text = ''
+                self.pixelEqLabel.setText(text)
+                self.parameters[index]['pixelEq'] = None
+                self.lockDict = False
+                self.saveParams()
+                return
+
+            #find coefficients necessary to convert to meters to match the axis info gathered in getAxisInfo()
+            if self.unitsCombo.currentIndex() == 1: #mm^2 in m^2
+                conversion = 10**6
+            if self.unitsCombo.currentIndex() == 2: #um^2 in m^2
+                conversion = 10**12
+            if self.unitsCombo.currentIndex() == 3: #nm^2 in m^2
+                conversion = 10**18
+
+            #numebr of pixels equal to number of units typed into gui
+            pixelsEquivalent = self.haltThresholdSpin.value() / (self.axisInfo[index]['pxArea'] * (conversion))
+            text = '= {} pixels'.format('%.2f' % pixelsEquivalent)
+            self.parameters[index]['pixelEq'] = int(round(pixelsEquivalent))
+            self.parameters[index]['pixelStr'] = text
             self.pixelEqLabel.setText(text)
-            self.parameters[index]['pixelEq'] = None
-            return
+            self.lockDict = False
+            self.saveParams()
+        return
 
-        if self.unitsCombo.currentIndex() == 1: #mm^2 in m^2
+
+    def recalcUnits(self, index):
+
+        #This function behaves like updateUnits(), but doesn't modify the gui or call saveParams(). This is only called
+        #when saveAllParams() or saveAllSubParams() is called. Since both of these functions copy the parameters of one image
+        #to other images, this function determines how to copy that new threshold value accurately (the pixel equvalent of the
+        #halting threshold may be different on two images, but this ensures that the user selected size is always the same in
+        #the units selected).
+
+        if self.parameterDict['units'] == 0:
+            return '', None
+
+        if self.parameterDict['units'] == 1: #mm^2 in m^2
             conversion = 10**6
-        if self.unitsCombo.currentIndex() == 2: #um^2 in m^2
+        if self.parameterDict['units'] == 2: #um^2 in m^2
             conversion = 10**12
-        if self.unitsCombo.currentIndex() == 3: #nm^2 in m^2
+        if self.parameterDict['units'] == 3: #nm^2 in m^2
             conversion = 10**18
 
         pixelsEquivalent = self.haltThresholdSpin.value() / (self.axisInfo[index]['pxArea'] * (conversion))
-        text = '= {} pixels'.format('%.2f'%pixelsEquivalent)
-        self.parameters[index]['pixelEq'] = int(round(pixelsEquivalent))
-        self.parameters[index]['pixelStr'] = text
-        self.pixelEqLabel.setText(text)
-        self.lockDict = False
-        return
+        text = '= {} pixels'.format('%.2f' % pixelsEquivalent)
+        eq = int(round(pixelsEquivalent))
+        return text, eq
 
 
     def changeParamsApperance(self):
@@ -861,6 +919,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             self.fileSettingsLabel.setText('Default settings')
             self.fileSettingsLabel.setPalette(self.red)
 
+        #essentailly "loads" the state of all the gui widgets as defined by the dictionary at the current index of self.parameters (which we call 'this')
         if this['smoothingIterations'] != 0: self.smoothCheck.setChecked(True)
         else: self.smoothCheck.setChecked(False)
         self.divideTypeCombo.setCurrentIndex(this['divideType'])
@@ -870,17 +929,18 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.bgVarianceSpin.setValue(this['varThreshold'])
         self.bgIntensitySpin.setValue(this['intThreshold'])
         self.unitsCombo.setCurrentIndex(this['units'])
-        self.updateUnits()
-        if this['pixelEq'] == None:
+        self.pixelEqLabel.setText(this['pixelStr'])
+
+        if self.axisInfo[index] == None: #image at current index has no unit data
             self.unitsCombo.setCurrentIndex(0)
             self.unitsCombo.setDisabled(True)
-
-        if self.axisInfo[index] == None:
             self.lockDict = False
+            self.saveParams()
             return
 
         self.unitsCombo.setDisabled(False)
         self.lockDict = False
+        self.saveParams()
         return
 
 
@@ -888,6 +948,10 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #this is called every time any paramter is changed, and modifies the dictionary at at index i of the self.parameters list
         #(when the file highlighted in the fileList is at index i of the list)
+        #The dictionary at the current index of self.parameters is then constantly updated to reflect the users parameter
+        #choices for the image at that index
+        #Again, self.parameterDict is a temporary dict that will change often, and is just used to gather info from the gui before
+        #"saving" it at a specific index of self.paramters
 
         if not self.lockDict:
             index = self.fileList.selectedIndexes()[0].row()
@@ -907,18 +971,44 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def saveAllParams(self):
+
+        #copy the current selected parameters to all other images in the batch. Unit data will be handled specially, so units won't be
+        #set for an image with no unit data, and units will be recalculated properly for images with different real pixel sizes.
+
         for index in range(len(self.parameters)):
-            self.parameters[index].update(self.parameterDict)
+            this = self.parameters[index]
+            this.update(self.parameterDict)
+            if self.axisInfo[index] == None and self.parameterDict['pixelEq'] != None: #meaning image has no unit info, can only have units of pixels
+                this['units'] = 0
+                this['haltThreshold'] = self.parameterDict['pixelEq'] #can be changed, but this would probably be the user-expected behavior
+                this['pixelEq'] = None
+                this['pixelStr'] = 'No unit data found'
+            else:
+                text, eq = self.recalcUnits(index)
+                this['pixelStr'] = text
+                this['pixelEq'] = eq
             self.customParams[index] = True
 
 
     def saveAllSubParams(self):
 
+        #same as above, but for smaller selection
+
         current = self.fileList.selectedIndexes()[0].row()
 
         for index in range(len(self.parameters)):
             if index > current:
-                self.parameters[index].update(self.parameterDict)
+                this = self.parameters[index]
+                this.update(self.parameterDict)
+                if self.axisInfo[index] == None and self.parameterDict['pixelEq'] != None:
+                    this['units'] = 0
+                    this['haltThreshold'] = self.parameterDict['pixelEq']
+                    this['pixelEq'] = None
+                    this['pixelStr'] = 'No unit data found'
+                else:
+                    text, eq = self.recalcUnits(index)
+                    this['pixelStr'] = text
+                    this['pixelEq'] = eq
                 self.customParams[index] = True
 
 
@@ -976,7 +1066,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 nextResults = finalize.finish(self.segmentData[i], self.maxVar, self.maxInt) #find all final segments, find background
                 self.results.append(nextResults)
                 self.makeSegmentMap(imageName)
-                output.toMAPS(nextResults[0], nextResults[1], nextData[3], nextData[1]) #export to MAPS ROI's, pass segments, dimensions, and segmentDir
+                output.toMAPS(nextResults[0], nextResults[1], nextData[3], nextData[1], imageName) #export to MAPS ROI's, pass segments, dimensions, and segmentDir
                 gui.advanceProgressBar((100-gui.progress.value())/len(self.dataPaths)) #if len(self.imaegPaths) = 1, this will set the progress bar to 100
                 gui.updateLog('Done')
 
@@ -1005,8 +1095,8 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 #---------------------------------------- HELPER FUNCTIONS ----------------------------------------
 
-    def disableAll(self):
 
+    def disableAll(self):
         #Disables all main frame widgets during segmentation
         self.segment.setDisabled(True)
         self.reset.setDisabled(True)
@@ -1068,7 +1158,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
 
     def toDefaultParams(self):
-        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':None,
+        self.parameterDict = {'divideType': 2, 'maxPixelDist': 8, 'units':0, 'pixelEq': None, 'pixelStr':'',
                               'smoothingIterations': 0, 'haltThreshold':100, 'varThreshold':110, 'intThreshold':15}
         return
 
@@ -1152,8 +1242,9 @@ class XSDImageSegmentation(qt.QMainWindow):
         return
 
 
-    #this function turns the map from output.mapBorders() into a color image
     def makeSegmentMap(self, imageName):
+
+        #this function turns the map from output.mapBorders() into a color image
 
         segmentDir, dimensions = self.segmentData[self.currentData][1], self.segmentData[self.currentData][3] #returned from segmentation.start()
         map = self.results[self.currentData][2] #returned from finalize.finish()
@@ -1171,36 +1262,33 @@ class XSDImageSegmentation(qt.QMainWindow):
             elif map[index] == 2: mapColor[index] = (117,205,255,50) #transparent cyan for background
             else: mapColor[index] = (0,0,0,0) #fully transparent for foreground
 
-        c = Image.new('RGBA', dimensions)
-        c.putdata(mapColor)
-        c.save(dest)
+        borders = Image.new('RGBA', dimensions) #map
+        borders.putdata(mapColor)
+        image = Image.open(self.imagePaths[self.currentData]) #original image
+        map = Image.new('RGB', (width, height))
+        map.paste(image)
+        map.paste(borders, (0,0), borders) #paste map onto original image, at position (0,0), using mapImage (alpha channel) as mask
+        map.save(dest)
 
         #Creating pixel map of the saved map file and building a QtLabel to hold it
         mapLabel = qt.QLabel('Segmentation Map for {}'.format(imageName), self.segmentsFrame)
         mapLabel.setFont(self.emphasis1)
-        pixMap = qt.QPixmap(self.imagePaths[self.currentData]) #original image
-        pixMapOverlay = qt.QPixmap(dest) #segmentation map
+        pixMap = qt.QPixmap(dest)
         imageHolder = qt.QLabel(self.segmentsFrame)
         imageHolder.setMinimumSize(450, 450/ratio)
-        mapHolder = qt.QLabel(self.segmentsFrame)
-        mapHolder.setMinimumSize(450, 450/ratio)
         scaledPixMap = pixMap.scaled(imageHolder.size(), QtCore.Qt.KeepAspectRatio)
-        scaledPixMapOverlay = pixMapOverlay.scaled(mapHolder.size(), QtCore.Qt.KeepAspectRatio)
-        mapHolder.setPixmap(scaledPixMapOverlay)
         imageHolder.setPixmap(scaledPixMap)
         mapFrame = qt.QFrame(self.segmentsFrame)
         mapLayout = qt.QVBoxLayout(mapFrame)
-        mapOverlay = qt.QGridLayout()
 
         #Adding components to reuslts window
 
-        mapOverlay.addWidget(imageHolder, 0, 0)
-        mapOverlay.addWidget(mapHolder, 0, 0)
         mapLayout.addWidget(mapLabel)
-        mapLayout.addLayout(mapOverlay)
+        mapLayout.addWidget(imageHolder)
         self.segmentsLayout.addWidget(mapFrame, self.currentData, 0)
 
-    #not currently used, add option for this to gui if desired
+
+    #not currently called from anywhere, add option for this to gui if desired, or delete otherwise
     def returnDiscretized(self, discretizedPath):
         #Sets the "original image" as the newly created discretized image, if checked
         self.dataPaths[self.currentData] = discretizedPath
@@ -1228,20 +1316,21 @@ class XSDImageSegmentation(qt.QMainWindow):
 #---------------------------------------- POPUP CLASSES ----------------------------------------
 
 
-
-#insatnces of this class will be shown to the user upon selecting to open a HDF5 file
-#provides a list of all exchange groups within the hdf5 in use, and asks which one to look for datasets, calls selectChannels()
 class ExchangePopup(qt.QWidget):
-    def __init__(self, hdf, name, n):
+
+    #insatnces of this class will be shown to the user upon selecting to open a HDF5 file
+    #provides a list of all exchange groups within the hdf5 in use, and asks which one to look for datasets, calls selectChannels()
+
+    def __init__(self, hdf, name, size):
 
         qt.QWidget.__init__(self)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
         self.filename = name
-        self.index = n
+        self.numFiles = size
         self.hdf = hdf
         self.keys = self.hdf.keys()
         self.found = False
-        self.label = qt.QLabel('Choose exchange group from {}'.format(self.filename))
+        self.label = qt.QLabel('Choose exchange group from {}\nto be used on {} selected files'.format(self.filename, self.numFiles))
         self.okBtn = qt.QPushButton('Ok', self)
         self.cancelBtn = qt.QPushButton('Cancel', self)
         self.combo = qt.QComboBox(self)
@@ -1306,7 +1395,7 @@ class ExchangePopup(qt.QWidget):
 
     def done(self):
         if self.found:
-            gui.selectChannels(str(self.combo.currentText()), self.index)
+            gui.selectChannels(str(self.combo.currentText()))
         return
 
 
@@ -1315,23 +1404,23 @@ class ExchangePopup(qt.QWidget):
         return
 
 
-#written in refernce to SimpleView2.py - Hong
-#insatnces of this class will be shown to the user upon selecting an exchange group within an hdf5
-#provides a panel of check boxes corresponding to each channel of data in this hdf5 exchange group, calls setChannels()
 class ChannelsPopup(qt.QWidget):
-    def __init__(self, name, channels, n):
+
+    #written in refernce to SimpleView2.py - Hong
+    #insatnces of this class will be shown to the user upon selecting an exchange group within an hdf5
+    #provides a panel of check boxes corresponding to each channel of data in this hdf5 exchange group, calls setChannels()
+
+    def __init__(self, channels):
 
         qt.QWidget.__init__(self)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
         self.names=list()
         for i in numpy.arange(100):
             self.names.append("")
-        self.index = n
-        self.filename = name
         self.channels = channels
         self.stack = True
         self.setWindowTitle("Choose Elements")
-        self.label = qt.QLabel('Choose channels to use for segmentation\n from {}'.format(self.filename), self)
+        self.label = qt.QLabel('Choose channels to use for segmentation', self)
         self.warningLabel = qt.QLabel('', self)
         self.doneBtn = qt.QPushButton('Done', self)
         self.deselectBtn = qt.QPushButton('Deselect All', self)
@@ -1431,9 +1520,8 @@ class ChannelsPopup(qt.QWidget):
                 return
         elif self.stackOptions2.isChecked(): self.stack = False
 
-        gui.setChannels(selectedChannels, selectedIndices, self.stack, self.index)
+        gui.setChannels(selectedChannels, selectedIndices, self.stack)
         return
-
 
 
 #---------------------------------------- RUN PROGRAM ---------------------------------------
