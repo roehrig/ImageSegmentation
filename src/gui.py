@@ -31,6 +31,7 @@ import convertdata
 class XSDImageSegmentation(qt.QMainWindow):
 
     def __init__(self, displaySize):
+        # displaySize is of type QRect
 
         qt.QMainWindow.__init__(self)
 
@@ -62,7 +63,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.segmentPaths = []
         self.segmentData = [] #list of data returned from the segmentation process
         self.results = [] #list of data returned from the finishing process
-        self.channels = [] #list of channels selected for the hdf file of teh corresponding list index
+        self.channels = [] #list of channels selected for the hdf file of the corresponding list index
         self.currentData = 0 #the current working file of all files selected for segmentation
         self.divideType = 0
         self.maxPixelDist = 0
@@ -106,7 +107,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         frames.append(self.logFrame)
         frames.append(self.resultsFrame)
 
-        #Styling, and addind all fames to StackedWidget for easy switching
+        #Styling, and adding all fames to StackedWidget for easy switching
         for frame in frames:
             frame.setFrameStyle(qt.QFrame.Panel)
             frame.setFrameShadow(qt.QFrame.Sunken)
@@ -287,7 +288,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.divideTypeCombo.setCurrentIndex(2) #how cut is determined
         self.smoothCheck.setChecked(False) #if image should be smoothed before segmenting
         self.smoothingIterationsSpin.setValue(0) #how many times to run through smoothing function
-        self.bgVarianceSpin.setValue(100) #maximum varaince for a segment to be considered background
+        self.bgVarianceSpin.setValue(100) #maximum variance for a segment to be considered background
         self.bgIntensitySpin.setValue(15) #maximum intensity for a segment to be considered background
 
         #save parameters on value change
@@ -564,7 +565,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 #The reversed range is necessary to prevent error
                 layout.itemAt(i).widget().setParent(None)
 
-        #calls the clarAll() method in plotframe.py so that every plot is erased
+        #calls the clearAll() method in plotframe.py so that every plot is erased
         plotframe.clearAll()
         self.segmentsLayout.addWidget(self.noResults, 0, 0)
         self.scatterLayout.addWidget(self.scatterAxesLabels, 0, 0)
@@ -621,7 +622,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                 self.fileList.addItem(os.path.split(str(file))[-1])
                 self.toDefaultParams() #reset params to default to avoid copying last opened image settings (could be removed)
                 self.parameters.append(self.parameterDict.copy()) #add a default parameter dict to the list of image parameters
-                self.customParams.append(False) #Add a 'False' to customParams since this image is still setto the defaults
+                self.customParams.append(False) #Add a 'False' to customParams since this image is still set to the defaults
                 self.axisInfo.append(None) #No axis info for a non-hdf image
                 self.imageNum += 1
             else:
@@ -632,7 +633,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def openHDF5(self):
 
-        #written in refernce to SimpleView2.py - Hong
+        #written in reference to SimpleView2.py - Hong
         #this function imports HDF5 files
 
         self.hdfs = []
@@ -659,12 +660,12 @@ class XSDImageSegmentation(qt.QMainWindow):
         self.exchangeGroup = None
         self.invalidFiles = []
 
-        #open each slected HDF5 with h5py, append each file to a list of files
+        #open each selected HDF5 with h5py, append each file to a list of files
         for file in self.hdfPaths:
             f = h5py.File(os.path.abspath(file),"r")
             self.hdfs.append(f)
 
-        #open the exchange popup for the first file in self.hdfs (opup to choose which exchnage directory to look for daat in)
+        #open the exchange popup for the first file in self.hdfs (popup to choose which exchange directory to look for data in)
         try:
             self.exchangePopup = ExchangePopup(self.hdfs[0], self.hdfNames[0], len(self.hdfs))
             self.exchangePopup.show()
@@ -677,7 +678,7 @@ class XSDImageSegmentation(qt.QMainWindow):
     def selectChannels(self, exchange):
 
         #written in refernce to SimpleView2.py - Hong
-        #this fucntion handles prompting the user for which HDF5 channels should be included in segmentation
+        #this function handles prompting the user for which HDF5 channels should be included in segmentation
 
         #just hide the exchange popup for now until we know user is not going to use it again
         self.exchangePopup.hide()
@@ -714,7 +715,7 @@ class XSDImageSegmentation(qt.QMainWindow):
                     return
             return
 
-        #-------------------- check for channel data in selected exchnage group --------------------
+        #-------------------- check for channel data in selected exchange group --------------------
         try:
             #look for channel data
             channelStr = '{}/channel_names'.format(exchange)
@@ -757,7 +758,7 @@ class XSDImageSegmentation(qt.QMainWindow):
         #Adding filenames to the gui file list, and calling convertdata.toArray() to retrieve the desired channel data from
         #the hdf file. If stack == True, each channel's pixel values will be "stacked" ontop of the others, making a multi-layered
         #dataset. Otherwise, each channel is treated as a seperate image. All resultant data arrays are saved to numpy files for
-        # segmentation, adn also to image files for results display. Returned is the path the the numpy files(s), and path to the images file(s)
+        # segmentation and also to image files for results display. Returned is the path the the numpy files(s), and path to the images file(s)
 
         for n in range(len(self.hdfs)):
             try:
@@ -823,7 +824,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
         #----------get pixel geometry----------
         xAxis = hdf[key]['x_axis']
-        yAxis = hdf[key]['x_axis']
+        yAxis = hdf[key]['y_axis']
         pixelWidth = abs(xAxis[0] - xAxis[1])*siScaling #in meters (assumes that the dimensions of every pixel are the same)
         pixelHeight = abs(yAxis[0] - yAxis[1])*siScaling #in meters
         pixelArea = pixelWidth*pixelHeight #in meters
@@ -842,7 +843,7 @@ class XSDImageSegmentation(qt.QMainWindow):
             index = index.row()
 
             #update to units of pixels, so get rid of pixel equivalent string, or restore it to 'No unit data found'
-            #and set 'PixelEq' to None, which is the check in runSegmentation() on whetehr to use the 'haltThresholdSpin'
+            #and set 'PixelEq' to None, which is the check in runSegmentation() on whether to use the 'haltThresholdSpin'
             #value or the 'pixelEq' value for the halting threshold in the segmentation
             if self.unitsCombo.currentIndex() == 0:
                 text = self.parameters[index]['pixelStr']
@@ -946,7 +947,7 @@ class XSDImageSegmentation(qt.QMainWindow):
 
     def saveParams(self):
 
-        #this is called every time any paramter is changed, and modifies the dictionary at at index i of the self.parameters list
+        #this is called every time any paramter is changed, and modifies the dictionary at index i of the self.parameters list
         #(when the file highlighted in the fileList is at index i of the list)
         #The dictionary at the current index of self.parameters is then constantly updated to reflect the users parameter
         #choices for the image at that index
@@ -1407,7 +1408,7 @@ class ExchangePopup(qt.QWidget):
 class ChannelsPopup(qt.QWidget):
 
     #written in refernce to SimpleView2.py - Hong
-    #insatnces of this class will be shown to the user upon selecting an exchange group within an hdf5
+    #instances of this class will be shown to the user upon selecting an exchange group within an hdf5
     #provides a panel of check boxes corresponding to each channel of data in this hdf5 exchange group, calls setChannels()
 
     def __init__(self, channels):

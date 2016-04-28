@@ -98,7 +98,7 @@ def DivideImage(secondVec, imageData, imageSize, datasize, locations, dividingVa
 
 def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cutNumber, paths, imageNumber, image):
 
-    #Preforms the algorithm
+    #Performs the algorithm
 
     gui = shareGui.getGui()
     pixel_path, matrix_path = paths[0], paths[1]
@@ -126,8 +126,9 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cut
         pixelLocations = newPixelsArrays['locations']
         pixelLength = len(newPixels)
         gui.updateLog("Reading array of size %d from file %s.npz" % (newPixels.shape[0], filename))
-        #If the size of the loaded image is below the halting threshold, do not segment, and return (ending this branch of the segmentation)
 
+        #If the size of the loaded image is below the halting threshold, do not segment,
+        # and return (ending this branch of the segmentation)
         if(len(newPixels) < haltThreshold):
             gui.updateLog('Skipping file %s: segment size is below specified halting threshold.' % image)
             #return value of '0' means the segmentation on this branch has ended
@@ -142,7 +143,7 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cut
     #Create a new diagonal matrix.
     gui.updateLog("Creating diagonal matrix")
     if (cutNumber > 1):
-        diagonalMatrix = DM(len(newPixels), 1)                          #had to change .size to len() to count multi-dimensional array items properly
+        diagonalMatrix = DM(len(newPixels), 1) #had to change .size to len() to count multi-dimensional array items properly
     else:
         diagonalMatrix = DM(data.width, data.height)
     diagonalMatrix.CreateMatrix(weightMatrix.GetMatrix())
@@ -151,10 +152,19 @@ def workSegment(haltThreshold, weightMatrix, data, divideType, displayPlots, cut
     secondVec = solveEigenVectors(diagonalMatrix.GetMatrix(), weightMatrix.GetMatrix())
 
 
-    # Divide the image into two using the second smallest eigenvector.
+    # Divide the image into two using the second smallest eigenvector.  There are three options for dividing the image.
+    # 1) All pixels corresponding to values in the eignevector greater than zero will be in one image,
+    #    while all pixels corresponding to values in the eigenvector less than zero will be in the
+    #    other image.
+    #
+    # 2) As option 1, except that eigenvector values will be compared to the median value of the eignevector.
+    #
+    # 3) Several different dividing values are tried.  The resulting ratio (edges in segment one / edges removed) +
+    #    (edges in segment two / edges removed) is minimized.
     if divideType == 0:
         dividingValue = 0
         numsteps = 1
+
 
     if divideType == 1:
         dividingValue = numpy.median(secondVec, axis=0)
